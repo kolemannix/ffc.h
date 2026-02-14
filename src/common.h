@@ -10,6 +10,14 @@
 #define jkn_ff_internal static
 #endif
 
+typedef struct jkn_ff_adjusted_mantissa {
+  uint64_t mantissa;
+  int32_t power2; // a negative value indicates an invalid result
+} jkn_ff_adjusted_mantissa;
+
+// Bias so we can get the real exponent with an invalid adjusted_mantissa.
+#define JKN_FF_INVALID_AM_BIAS ((int32_t)-0x8000);
+
 #if defined(_MSC_VER)
   #define jkn_ff_inline __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
@@ -220,6 +228,10 @@ jkn_ff_u128 jkn_ff_full_multiplication(uint64_t a, uint64_t b) {
 #define DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN  23
 #define DOUBLE_MAX_EXPONENT_FAST_PATH      22
 #define DOUBLE_MAX_MANTISSA_FAST_PATH      ((uint64_t)(2) << DOUBLE_MANTISSA_EXPLICIT_BITS)
+#define DOUBLE_EXPONENT_MASK               0x7FF0000000000000
+#define DOUBLE_MANTISSA_MASK               0x000FFFFFFFFFFFFF
+#define DOUBLE_HIDDEN_BIT_MASK             0x0010000000000000
+#define DOUBLE_MAX_DIGITS                  769
 
 #define FLOAT_SMALLEST_POWER_OF_10         -64
 #define FLOAT_LARGEST_POWER_OF_10          38
@@ -231,6 +243,10 @@ jkn_ff_u128 jkn_ff_full_multiplication(uint64_t a, uint64_t b) {
 #define FLOAT_MAX_EXPONENT_ROUND_TO_EVEN   10
 #define FLOAT_MAX_EXPONENT_FAST_PATH       10
 #define FLOAT_MAX_MANTISSA_FAST_PATH       (uint64_t(2) << FLOAT_MANTISSA_EXPLICIT_BITS)
+#define FLOAT_EXPONENT_MASK                0x7F800000
+#define FLOAT_MANTISSA_MASK                0x007FFFFF
+#define FLOAT_HIDDEN_BIT_MASK              0x00800000
+#define FLOAT_MAX_DIGITS                   114
 
 #define POWERS_OF_5_NUMBER_OF_ENTRIES (2 * (DOUBLE_LARGEST_POWER_OF_10 - DOUBLE_SMALLEST_POWER_OF_10 + 1))
 
@@ -402,6 +418,24 @@ bool jkn_ff_rounds_to_nearest() {
 #elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
+}
+
+jkn_ff_internal jkn_ff_inline
+// packs up an adjusted_mantissa into a double
+void jkn_ff_am_to_float_double(bool negative, jkn_ff_adjusted_mantissa am, double* value) {
+  uint64_t word = am.mantissa;
+  word = word | (uint64_t)(am.power2) << DOUBLE_MANTISSA_EXPLICIT_BITS;
+  word = word | (uint64_t)(negative) << DOUBLE_SIGN_INDEX;
+  memcpy(value, &word, sizeof(double));
+}
+
+jkn_ff_internal jkn_ff_inline
+// packs up an adjusted_mantissa into a double
+void jkn_ff_am_to_float_float(bool negative, jkn_ff_adjusted_mantissa am, float* value) {
+  uint64_t word = am.mantissa;
+  word = word | (uint64_t)(am.power2) << FLOAT_MANTISSA_EXPLICIT_BITS;
+  word = word | (uint64_t)(negative) << FLOAT_SIGN_INDEX;
+  memcpy(value, &word, sizeof(float));
 }
 
 static const double double_powers_of_ten[] = {

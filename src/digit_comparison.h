@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "bigint.h"
+#include "parse.h"
 
 // 1e0 to 1e19
 static const uint64_t jkn_ff_powers_of_ten_uint64[] = {1UL,
@@ -48,31 +49,49 @@ scientific_exponent(uint64_t mantissa, int32_t exponent) {
 }
 
 // this converts a native floating-point number to an extended-precision float.
-template <typename T>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa
-to_extended(T value) noexcept {
-  using equiv_uint = equiv_uint_t<T>;
-  constexpr equiv_uint exponent_mask = binary_format<T>::exponent_mask();
-  constexpr equiv_uint mantissa_mask = binary_format<T>::mantissa_mask();
-  constexpr equiv_uint hidden_bit_mask = binary_format<T>::hidden_bit_mask();
+jkn_ff_internal jkn_ff_inline jkn_ff_adjusted_mantissa
+jkn_ff_to_extended_double(double value) {
+  uint64_t const exponent_mask = DOUBLE_EXPONENT_MASK;
+  uint64_t const mantissa_mask = DOUBLE_MANTISSA_MASK;
+  uint64_t const hidden_bit_mask = DOUBLE_HIDDEN_BIT_MASK;
 
-  adjusted_mantissa am;
-  int32_t bias = binary_format<T>::mantissa_explicit_bits() -
-                 binary_format<T>::minimum_exponent();
-  equiv_uint bits;
-#if FASTFLOAT_HAS_BIT_CAST
-  bits = std::bit_cast<equiv_uint>(value);
-#else
-  ::memcpy(&bits, &value, sizeof(T));
-#endif
+  jkn_ff_adjusted_mantissa am;
+  int32_t bias = DOUBLE_MANTISSA_EXPLICIT_BITS - DOUBLE_MINIMUM_EXPONENT;
+  uint64_t bits;
+  memcpy(&bits, &value, sizeof(double));
+
   if ((bits & exponent_mask) == 0) {
     // denormal
     am.power2 = 1 - bias;
     am.mantissa = bits & mantissa_mask;
   } else {
     // normal
-    am.power2 = int32_t((bits & exponent_mask) >>
-                        binary_format<T>::mantissa_explicit_bits());
+    am.power2 = (int32_t)((bits & exponent_mask) >> DOUBLE_MANTISSA_EXPLICIT_BITS);
+    am.power2 -= bias;
+    am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
+  }
+
+  return am;
+}
+
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa jkn_ff_to_extended_float(float value) {
+  uint32_t const exponent_mask = FLOAT_EXPONENT_MASK;
+  uint32_t const mantissa_mask = FLOAT_MANTISSA_MASK;
+  uint32_t const hidden_bit_mask = FLOAT_HIDDEN_BIT_MASK;
+
+  jkn_ff_adjusted_mantissa am;
+  int32_t bias = FLOAT_MANTISSA_EXPLICIT_BITS - FLOAT_MINIMUM_EXPONENT;
+  uint32_t bits;
+  memcpy(&bits, &value, sizeof(float));
+
+  if ((bits & exponent_mask) == 0) {
+    // denormal
+    am.power2 = 1 - bias;
+    am.mantissa = bits & mantissa_mask;
+  } else {
+    // normal
+    am.power2 = (int32_t)((bits & exponent_mask) >> FLOAT_MANTISSA_EXPLICIT_BITS);
     am.power2 -= bias;
     am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
   }
@@ -83,10 +102,18 @@ to_extended(T value) noexcept {
 // get the extended precision value of the halfway point between b and b+u.
 // we are given a native float that represents b, so we need to adjust it
 // halfway between b and b+u.
-template <typename T>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa
-to_extended_halfway(T value) noexcept {
-  adjusted_mantissa am = to_extended(value);
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway_double(double value) {
+  jkn_ff_adjusted_mantissa am = jkn_ff_to_extended_double(value);
+  am.mantissa <<= 1;
+  am.mantissa += 1;
+  am.power2 -= 1;
+  return am;
+}
+
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway_float(float value) {
+  jkn_ff_adjusted_mantissa am = jkn_ff_to_extended_float(value);
   am.mantissa <<= 1;
   am.mantissa += 1;
   am.power2 -= 1;
@@ -94,17 +121,15 @@ to_extended_halfway(T value) noexcept {
 }
 
 // round an extended-precision float to the nearest machine float.
-template <typename T, typename callback>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR14 void round(adjusted_mantissa &am,
-                                                         callback cb) noexcept {
-  int32_t mantissa_shift = 64 - binary_format<T>::mantissa_explicit_bits() - 1;
-  if (-am.power2 >= mantissa_shift) {
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_round_double(jkn_ff_adjusted_mantissa *am, callback cb) {
+  int32_t mantissa_shift = 64 - DOUBLE_MANTISSA_EXPLICIT_BITS - 1;
+  if (-am->power2 >= mantissa_shift) {
     // have a denormal float
-    int32_t shift = -am.power2 + 1;
-    cb(am, std::min<int32_t>(shift, 64));
+    int32_t shift = -am->power2 + 1;
+    cb(am, MIN(shift, 64));
     // check for round-up: if rounding-nearest carried us to the hidden bit.
-    am.power2 = (am.mantissa <
-                 (uint64_t(1) << binary_format<T>::mantissa_explicit_bits()))
+    am->power2 = (am->mantissa < ((uint64_t)(1) << DOUBLE_MANTISSA_EXPLICIT_BITS))
                     ? 0
                     : 1;
     return;
@@ -114,89 +139,143 @@ fastfloat_really_inline FASTFLOAT_CONSTEXPR14 void round(adjusted_mantissa &am,
   cb(am, mantissa_shift);
 
   // check for carry
-  if (am.mantissa >=
-      (uint64_t(2) << binary_format<T>::mantissa_explicit_bits())) {
-    am.mantissa = (uint64_t(1) << binary_format<T>::mantissa_explicit_bits());
-    am.power2++;
+  if (am->mantissa >= ((uint64_t)(2) << DOUBLE_MANTISSA_EXPLICIT_BITS)) {
+    am->mantissa = ((uint64_t)(1) << DOUBLE_MANTISSA_EXPLICIT_BITS);
+    am->power2++;
   }
 
   // check for infinite: we could have carried to an infinite power
-  am.mantissa &= ~(uint64_t(1) << binary_format<T>::mantissa_explicit_bits());
-  if (am.power2 >= binary_format<T>::infinite_power()) {
-    am.power2 = binary_format<T>::infinite_power();
-    am.mantissa = 0;
+  am->mantissa &= ~((uint64_t)(1) << DOUBLE_MANTISSA_EXPLICIT_BITS);
+  if (am->power2 >= DOUBLE_INFINITE_POWER) {
+    am->power2 = DOUBLE_INFINITE_POWER;
+    am->mantissa = 0;
   }
 }
 
-template <typename callback>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR14 void
-round_nearest_tie_even(adjusted_mantissa &am, int32_t shift,
-                       callback cb) noexcept {
-  uint64_t const mask = (shift == 64) ? UINT64_MAX : (uint64_t(1) << shift) - 1;
-  uint64_t const halfway = (shift == 0) ? 0 : uint64_t(1) << (shift - 1);
-  uint64_t truncated_bits = am.mantissa & mask;
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_round_nearest_tie_even(jkn_ff_adjusted_mantissa *am, int32_t shift, callback cb) {
+  uint64_t const mask = (shift == 64) ? UINT64_MAX : ((uint64_t)(1) << shift) - 1;
+  uint64_t const halfway = (shift == 0) ? 0 : (uint64_t)(1) << (shift - 1);
+  uint64_t truncated_bits = am->mantissa & mask;
   bool is_above = truncated_bits > halfway;
   bool is_halfway = truncated_bits == halfway;
 
   // shift digits into position
   if (shift == 64) {
-    am.mantissa = 0;
+    am->mantissa = 0;
   } else {
-    am.mantissa >>= shift;
+    am->mantissa >>= shift;
   }
-  am.power2 += shift;
+  am->power2 += shift;
 
-  bool is_odd = (am.mantissa & 1) == 1;
-  am.mantissa += uint64_t(cb(is_odd, is_halfway, is_above));
+  bool is_odd = (am->mantissa & 1) == 1;
+  am->mantissa += (uint64_t)(cb(is_odd, is_halfway, is_above));
 }
 
-fastfloat_really_inline FASTFLOAT_CONSTEXPR14 void
-round_down(adjusted_mantissa &am, int32_t shift) noexcept {
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_round_down(jkn_ff_adjusted_mantissa* am, int32_t shift) {
   if (shift == 64) {
-    am.mantissa = 0;
+    am->mantissa = 0;
   } else {
-    am.mantissa >>= shift;
+    am->mantissa >>= shift;
   }
-  am.power2 += shift;
+  am->power2 += shift;
 }
 
-template <typename UC>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 void
-skip_zeros(UC const *&first, UC const *last) noexcept {
-  uint64_t val;
-  while (!cpp20_and_in_constexpr() &&
-         std::distance(first, last) >= int_cmp_len<UC>()) {
-    ::memcpy(&val, first, sizeof(uint64_t));
-    if (val != int_cmp_zeros<UC>()) {
-      break;
-    }
-    first += int_cmp_len<UC>();
+/* 1-byte chars (char, uint8_t) */
+#define JKN_FF_INT_CMP_ZEROS_1 0x3030303030303030ULL
+#define JKN_FF_INT_CMP_LEN_1   8
+
+/* 2-byte chars (uint16_t, wchar_t on Windows) */
+#define JKN_FF_INT_CMP_ZEROS_2 0x0030003000300030ULL
+#define JKN_FF_INT_CMP_LEN_2   4
+
+/* 4-byte chars (uint32_t, wchar_t on Linux) */
+#define JKN_FF_INT_CMP_ZEROS_4 0x0000003000000030ULL
+#define JKN_FF_INT_CMP_LEN_4   2
+
+jkn_ff_internal jkn_ff_inline
+bool jkn_ff_char_eq_zero(char const *p, size_t char_width) {
+  switch (char_width) {
+    case 1: return *p == '0';
+    case 2: return *(uint16_t const *)p == 0x0030;
+    case 4: return *(uint32_t const *)p == 0x00000030;
+    default: return false;
   }
-  while (first != last) {
-    if (*first != UC('0')) {
+}
+
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_skip_zeros(char const **first, char const *last, size_t char_width) {
+  size_t cmp_len;
+  size_t cmp_mask;
+  switch (char_width) {
+    case 1:
+      cmp_len = JKN_FF_INT_CMP_LEN_1;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_1;
+      break;
+    case 2:
+      cmp_len = JKN_FF_INT_CMP_LEN_2;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_2;
+      break;
+    case 4:
+      cmp_len = JKN_FF_INT_CMP_LEN_4;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_4;
+      break;
+    default:
+      JKN_FF_DEBUG_ASSERT(0);
+      return;
+  }
+
+  uint64_t val;
+  while (last - *first >= cmp_len) {
+    memcpy(&val, *first, sizeof(uint64_t));
+    if (val != cmp_mask) {
       break;
     }
-    first++;
+    *first += cmp_len;
+  }
+  while (*first != last) {
+    if (jkn_ff_char_eq_zero(*first, char_width)) {
+      break;
+    }
+    *first += 1;
   }
 }
 
 // determine if any non-zero digits were truncated.
 // all characters must be valid digits.
-template <typename UC>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 bool
-is_truncated(UC const *first, UC const *last) noexcept {
+jkn_ff_internal jkn_ff_inline
+bool is_truncated(char const *first, char const *last, size_t char_width) {
+  size_t cmp_len;
+  size_t cmp_mask;
+  switch (char_width) {
+    case 1:
+      cmp_len = JKN_FF_INT_CMP_LEN_1;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_1;
+      break;
+    case 2:
+      cmp_len = JKN_FF_INT_CMP_LEN_2;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_2;
+      break;
+    case 4:
+      cmp_len = JKN_FF_INT_CMP_LEN_4;
+      cmp_mask = JKN_FF_INT_CMP_ZEROS_4;
+      break;
+    default:
+      JKN_FF_DEBUG_ASSERT(0);
+      return 0;
+  }
   // do 8-bit optimizations, can just compare to 8 literal 0s.
   uint64_t val;
-  while (!cpp20_and_in_constexpr() &&
-         std::distance(first, last) >= int_cmp_len<UC>()) {
-    ::memcpy(&val, first, sizeof(uint64_t));
-    if (val != int_cmp_zeros<UC>()) {
+  while (last - first >= cmp_len) {
+    memcpy(&val, first, sizeof(uint64_t));
+    if (val != cmp_mask) {
       return true;
     }
-    first += int_cmp_len<UC>();
+    first += cmp_len;
   }
   while (first != last) {
-    if (*first != UC('0')) {
+    if (jkn_ff_char_eq_zero(first, char_width)) {
       return true;
     }
     ++first;
@@ -204,51 +283,40 @@ is_truncated(UC const *first, UC const *last) noexcept {
   return false;
 }
 
-template <typename UC>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 bool
-is_truncated(span<UC const> s) noexcept {
-  return is_truncated(s.ptr, s.ptr + s.len());
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_parse_eight_digits(char const **p, limb *value, size_t *counter, size_t *count) {
+  *value = *value * 100000000 + jkn_ff_parse_eight_digits_unrolled(*p);
+  *p += 8;
+  *counter += 8;
+  *count += 8;
 }
 
-template <typename UC>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 void
-parse_eight_digits(UC const *&p, limb &value, size_t &counter,
-                   size_t &count) noexcept {
-  value = value * 100000000 + parse_eight_digits_unrolled(p);
-  p += 8;
-  counter += 8;
-  count += 8;
-}
-
-template <typename UC>
-fastfloat_really_inline FASTFLOAT_CONSTEXPR14 void
-parse_one_digit(UC const *&p, limb &value, size_t &counter,
-                size_t &count) noexcept {
-  value = value * 10 + limb(*p - UC('0'));
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_parse_one_digit(char const **p, limb *value, size_t *counter, size_t *count) {
+  *value = *value * 10 + (limb)(**p - '0');
   p++;
   counter++;
   count++;
 }
 
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 void
-add_native(bigint &big, limb power, limb value) noexcept {
-  big.mul(power);
-  big.add(value);
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_add_native(jkn_ff_bigint *big, limb power, limb value) {
+  jkn_ff_bigint_mul(big, power);
+  jkn_ff_bigint_add(big, value);
 }
 
-fastfloat_really_inline FASTFLOAT_CONSTEXPR20 void
-round_up_bigint(bigint &big, size_t &count) noexcept {
+jkn_ff_internal jkn_ff_inline
+void round_up_bigint(jkn_ff_bigint *big, size_t *count) {
   // need to round-up the digits, but need to avoid rounding
   // ....9999 to ...10000, which could cause a false halfway point.
-  add_native(big, 10, 1);
+  jkn_ff_add_native(big, 10, 1);
   count++;
 }
 
 // parse the significant digits into a big integer
-template <typename UC>
-inline FASTFLOAT_CONSTEXPR20 void
-parse_mantissa(bigint &result, parsed_number_string_t<UC> &num,
-               size_t max_digits, size_t &digits) noexcept {
+jkn_ff_internal jkn_ff_inline
+void jkn_ff_parse_mantissa(jkn_ff_bigint *result, jkn_ff_parsed *num,
+               size_t max_digits, size_t *digits) {
   // try to minimize the number of big integer and scalar multiplication.
   // therefore, try to parse 8 digits at a time, and multiply by the largest
   // scalar value (9 or 19 digits) for each step.
@@ -262,62 +330,62 @@ parse_mantissa(bigint &result, parsed_number_string_t<UC> &num,
 #endif
 
   // process all integer digits.
-  UC const *p = num.integer.ptr;
-  UC const *pend = p + num.integer.len();
-  skip_zeros(p, pend);
+  char const *p = num->int_part_start;
+  char const *pend = p + num->int_part_len;
+  jkn_ff_skip_zeros(&p, pend, 1);
   // process all digits, in increments of step per loop
   while (p != pend) {
-    while ((std::distance(p, pend) >= 8) && (step - counter >= 8) &&
-           (max_digits - digits >= 8)) {
-      parse_eight_digits(p, value, counter, digits);
+    while ((pend - p >= 8) && (step - counter >= 8) &&
+           (max_digits - *digits >= 8)) {
+      jkn_ff_parse_eight_digits(&p, &value, &counter, digits);
     }
-    while (counter < step && p != pend && digits < max_digits) {
-      parse_one_digit(p, value, counter, digits);
+    while (counter < step && p != pend && *digits < max_digits) {
+      jkn_ff_parse_one_digit(&p, &value, &counter, digits);
     }
-    if (digits == max_digits) {
+    if (*digits == max_digits) {
       // add the temporary value, then check if we've truncated any digits
-      add_native(result, limb(powers_of_ten_uint64[counter]), value);
-      bool truncated = is_truncated(p, pend);
-      if (num.fraction.ptr != nullptr) {
-        truncated |= is_truncated(num.fraction);
+      jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
+      bool truncated = is_truncated(p, pend, 1);
+      if (num->fraction_part_start != NULL) {
+        truncated |= is_truncated(num->fraction_part_start, num->fraction_part_start + num->fraction_part_len, 1);
       }
       if (truncated) {
         round_up_bigint(result, digits);
       }
       return;
     } else {
-      add_native(result, limb(powers_of_ten_uint64[counter]), value);
+      jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
       counter = 0;
       value = 0;
     }
   }
 
   // add our fraction digits, if they're available.
-  if (num.fraction.ptr != nullptr) {
-    p = num.fraction.ptr;
-    pend = p + num.fraction.len();
+  if (num->fraction_part_start != NULL) {
+    p = num->fraction_part_start;
+    pend = p + num->fraction_part_len;
     if (digits == 0) {
-      skip_zeros(p, pend);
+      jkn_ff_skip_zeros(&p, pend, 1);
     }
     // process all digits, in increments of step per loop
     while (p != pend) {
-      while ((std::distance(p, pend) >= 8) && (step - counter >= 8) &&
-             (max_digits - digits >= 8)) {
-        parse_eight_digits(p, value, counter, digits);
+      while ((pend - p >= 8) && (step - counter >= 8) &&
+             (max_digits - *digits >= 8)) {
+        jkn_ff_parse_eight_digits(&p, &value, &counter, digits);
       }
-      while (counter < step && p != pend && digits < max_digits) {
-        parse_one_digit(p, value, counter, digits);
+      while (counter < step && p != pend && *digits < max_digits) {
+        jkn_ff_parse_one_digit(&p, &value, &counter, digits);
       }
-      if (digits == max_digits) {
+      if (*digits == max_digits) {
         // add the temporary value, then check if we've truncated any digits
-        add_native(result, limb(powers_of_ten_uint64[counter]), value);
-        bool truncated = is_truncated(p, pend);
+        jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
+        bool truncated = is_truncated(p, pend, 1);
         if (truncated) {
           round_up_bigint(result, digits);
         }
         return;
       } else {
-        add_native(result, limb(powers_of_ten_uint64[counter]), value);
+        jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
         counter = 0;
         value = 0;
       }
@@ -325,22 +393,20 @@ parse_mantissa(bigint &result, parsed_number_string_t<UC> &num,
   }
 
   if (counter != 0) {
-    add_native(result, limb(powers_of_ten_uint64[counter]), value);
+    jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
   }
 }
 
-template <typename T>
-inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa
-positive_digit_comp(bigint &bigmant, int32_t exponent) noexcept {
-  FASTFLOAT_ASSERT(bigmant.pow10(uint32_t(exponent)));
-  adjusted_mantissa answer;
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa jkn_ff_positive_digit_comp_double(jkn_ff_bigint *bigmant, int32_t exponent) {
+  JKN_FF_ASSERT(jkn_ff_bigint_pow10(bigmant, (uint32_t)(exponent)));
+  jkn_ff_adjusted_mantissa answer;
   bool truncated;
-  answer.mantissa = bigmant.hi64(truncated);
-  int bias = binary_format<T>::mantissa_explicit_bits() -
-             binary_format<T>::minimum_exponent();
-  answer.power2 = bigmant.bit_length() - 64 + bias;
+  answer.mantissa = jkn_ff_bigint_hi64(*bigmant, &truncated);
+  int bias = DOUBLE_MANTISSA_EXPLICIT_BITS - DOUBLE_MINIMUM_EXPONENT;
+  answer.power2 = jkn_ff_bigint_bit_length(*bigmant) - 64 + bias;
 
-  round<T>(answer, [truncated](adjusted_mantissa &a, int32_t shift) {
+  jkn_ff_round_double(answer, [truncated](adjusted_mantissa &a, int32_t shift) {
     round_nearest_tie_even(
         a, shift,
         [truncated](bool is_odd, bool is_halfway, bool is_above) -> bool {
@@ -357,40 +423,40 @@ positive_digit_comp(bigint &bigmant, int32_t exponent) noexcept {
 // to scale them identically, we do `n * 2^f * 5^-f`, so we now have `m * 2^e`.
 // we then need to scale by `2^(f- e)`, and then the two significant digits
 // are of the same magnitude.
-template <typename T>
-inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa negative_digit_comp(
-    bigint &bigmant, adjusted_mantissa am, int32_t exponent) noexcept {
-  bigint &real_digits = bigmant;
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp_double(
+    jkn_ff_bigint *bigmant, jkn_ff_adjusted_mantissa am, int32_t exponent) {
+  jkn_ff_bigint *real_digits = bigmant;
   int32_t real_exp = exponent;
 
   // get the value of `b`, rounded down, and get a bigint representation of b+h
-  adjusted_mantissa am_b = am;
+  jkn_ff_adjusted_mantissa am_b = am;
   // gcc7 buf: use a lambda to remove the noexcept qualifier bug with
   // -Wnoexcept-type.
-  round<T>(am_b,
+  jkn_ff_round_double(am_b,
            [](adjusted_mantissa &a, int32_t shift) { round_down(a, shift); });
-  T b;
-  to_float(false, am_b, b);
-  adjusted_mantissa theor = to_extended_halfway(b);
-  bigint theor_digits(theor.mantissa);
+  double b;
+  jkn_ff_am_to_float_double(false, am_b, &b);
+  jkn_ff_adjusted_mantissa theor = jkn_ff_to_extended_halfway_double(b);
+  jkn_ff_bigint theor_digits = jkn_ff_bigint_make(theor.mantissa);
   int32_t theor_exp = theor.power2;
 
   // scale real digits and theor digits to be same power.
   int32_t pow2_exp = theor_exp - real_exp;
-  uint32_t pow5_exp = uint32_t(-real_exp);
+  uint32_t pow5_exp = (uint32_t)(-real_exp);
   if (pow5_exp != 0) {
-    FASTFLOAT_ASSERT(theor_digits.pow5(pow5_exp));
+    JKN_FF_ASSERT(jkn_ff_bigint_pow5(&theor_digits, pow5_exp));
   }
   if (pow2_exp > 0) {
-    FASTFLOAT_ASSERT(theor_digits.pow2(uint32_t(pow2_exp)));
+    JKN_FF_ASSERT(jkn_ff_bigint_pow2(&theor_digits, (uint32_t)(pow2_exp)));
   } else if (pow2_exp < 0) {
-    FASTFLOAT_ASSERT(real_digits.pow2(uint32_t(-pow2_exp)));
+    JKN_FF_ASSERT(jkn_ff_bigint_pow2(real_digits,(uint32_t)(-pow2_exp)));
   }
 
   // compare digits, and use it to direct rounding
-  int ord = real_digits.compare(theor_digits);
-  adjusted_mantissa answer = am;
-  round<T>(answer, [ord](adjusted_mantissa &a, int32_t shift) {
+  int ord = jkn_ff_bigint_compare(*real_digits, &theor_digits);
+  jkn_ff_adjusted_mantissa answer = am;
+  jkn_ff_round_double(answer, [ord](adjusted_mantissa &a, int32_t shift) {
     round_nearest_tie_even(
         a, shift, [ord](bool is_odd, bool _, bool __) -> bool {
           (void)_;  // not needed, since we've done our comparison
@@ -421,27 +487,24 @@ inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa negative_digit_comp(
 // `b` as a big-integer type, scaled to the same binary exponent as
 // the actual digits. we then compare the big integer representations
 // of both, and use that to direct rounding.
-template <typename T, typename UC>
-inline FASTFLOAT_CONSTEXPR20 adjusted_mantissa
-digit_comp(parsed_number_string_t<UC> &num, adjusted_mantissa am) noexcept {
+jkn_ff_internal jkn_ff_inline
+jkn_ff_adjusted_mantissa digit_comp(jkn_ff_parsed *num, jkn_ff_adjusted_mantissa am) {
   // remove the invalid exponent bias
-  am.power2 -= invalid_am_bias;
+  am.power2 -= JKN_FF_INVALID_AM_BIAS;
 
   int32_t sci_exp =
-      scientific_exponent(num.mantissa, static_cast<int32_t>(num.exponent));
-  size_t max_digits = binary_format<T>::max_digits();
+      scientific_exponent(num->mantissa, (int32_t)(num->exponent));
+  size_t max_digits = DOUBLE_MAX_DIGITS;
   size_t digits = 0;
-  bigint bigmant;
-  parse_mantissa(bigmant, num, max_digits, digits);
+  jkn_ff_bigint bigmant;
+  jkn_ff_parse_mantissa(&bigmant, num, max_digits, &digits);
   // can't underflow, since digits is at most max_digits.
-  int32_t exponent = sci_exp + 1 - int32_t(digits);
+  int32_t exponent = sci_exp + 1 - (int32_t)(digits);
   if (exponent >= 0) {
-    return positive_digit_comp<T>(bigmant, exponent);
+    return jkn_ff_positive_digit_comp_double(&bigmant, exponent);
   } else {
-    return negative_digit_comp<T>(bigmant, am, exponent);
+    return jkn_ff_negative_digit_comp_double(&bigmant, am, exponent);
   }
 }
-
-} // namespace fast_float
 
 #endif // FASTFLOAT_DIGIT_COMPARISON_H

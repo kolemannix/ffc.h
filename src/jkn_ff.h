@@ -47,29 +47,6 @@ jkn_ff_result jkn_ff_parse_float(size_t len, const char input[len], float* out);
 
 /* section: decimal to binary */
 
-typedef struct jkn_ff_adjusted_mantissa {
-  uint64_t mantissa;
-  int32_t power2; // a negative value indicates an invalid result
-} jkn_ff_adjusted_mantissa;
-
-jkn_ff_internal jkn_ff_inline
-// packs up an adjusted_mantissa into a double
-void jkn_ff_am_to_float_double(bool negative, jkn_ff_adjusted_mantissa am, double* value) {
-  uint64_t word = am.mantissa;
-  word = word | (uint64_t)(am.power2) << DOUBLE_MANTISSA_EXPLICIT_BITS;
-  word = word | (uint64_t)(negative) << DOUBLE_SIGN_INDEX;
-  memcpy(value, &word, sizeof(double));
-}
-
-jkn_ff_internal jkn_ff_inline
-// packs up an adjusted_mantissa into a double
-void jkn_ff_am_to_float_float(bool negative, jkn_ff_adjusted_mantissa am, float* value) {
-  uint64_t word = am.mantissa;
-  word = word | (uint64_t)(am.power2) << FLOAT_MANTISSA_EXPLICIT_BITS;
-  word = word | (uint64_t)(negative) << FLOAT_SIGN_INDEX;
-  memcpy(value, &word, sizeof(float));
-}
-
 jkn_ff_inline jkn_ff_internal
 jkn_ff_u128 jkn_ff_compute_product_approximation_double(int64_t q, uint64_t w) {
   // The required precision is mantissa_explicit_bits + 3 because
@@ -245,14 +222,12 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
 // for significant digits already multiplied by 10 ** q.
 jkn_ff_internal jkn_ff_inline
 jkn_ff_adjusted_mantissa jkn_ff_compute_error_scaled_double(int64_t q, uint64_t w, int lz) {
-  // Bias so we can get the real exponent with an invalid adjusted_mantissa.
-  static const int32_t invalid_am_bias = -0x8000;
   int hilz = (int)(w >> 63) ^ 1;
   jkn_ff_adjusted_mantissa answer;
   answer.mantissa = w << hilz;
   int bias = DOUBLE_MANTISSA_EXPLICIT_BITS - DOUBLE_MINIMUM_EXPONENT;
   answer.power2 = (int32_t)(jkn_ff_b10_to_b2((int32_t)(q)) + bias - hilz - lz - 62 +
-                          invalid_am_bias);
+                          JKN_FF_INVALID_AM_BIAS);
   return answer;
 }
 
