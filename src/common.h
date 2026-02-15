@@ -1,5 +1,7 @@
 #ifndef JKN_FF_COMMON_H
 #define JKN_FF_COMMON_H
+
+#include "api.h"
 #include <float.h> // for NAN, FLT_MIN
 #include <stddef.h>
 #include <stdint.h>
@@ -16,7 +18,7 @@ typedef struct jkn_ff_adjusted_mantissa {
 } jkn_ff_adjusted_mantissa;
 
 // Bias so we can get the real exponent with an invalid adjusted_mantissa.
-#define JKN_FF_INVALID_AM_BIAS ((int32_t)-0x8000);
+#define JKN_FF_INVALID_AM_BIAS ((int32_t)-0x8000)
 
 #if defined(_MSC_VER)
   #define jkn_ff_inline __forceinline
@@ -34,12 +36,12 @@ typedef struct jkn_ff_adjusted_mantissa {
      (defined(__ppc64__) || defined(__PPC64__) || defined(__ppc64le__) ||      \
       defined(__PPC64LE__)) ||                                                 \
      defined(__loongarch64) || (defined(__riscv) && __riscv_xlen == 64))
-#define FASTFLOAT_64BIT 1
+#define FFC_64BIT 1
 #elif (defined(__i386) || defined(__i386__) || defined(_M_IX86) ||             \
        defined(__arm__) || defined(_M_ARM) || defined(__ppc__) ||              \
        defined(__MINGW32__) || defined(__EMSCRIPTEN__) ||                      \
        (defined(__riscv) && __riscv_xlen == 32))
-#define FASTFLOAT_32BIT 1
+#define FFC_32BIT 1
 #else
   // Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
 // We can never tell the register width, but the SIZE_MAX is a good
@@ -48,9 +50,9 @@ typedef struct jkn_ff_adjusted_mantissa {
 #if SIZE_MAX == 0xffff
 #error Unknown platform (16-bit, unsupported)
 #elif SIZE_MAX == 0xffffffff
-#define FASTFLOAT_32BIT 1
+#define FFC_32BIT 1
 #elif SIZE_MAX == 0xffffffffffffffff
-#define FASTFLOAT_64BIT 1
+#define FFC_64BIT 1
 #else
 #error Unknown platform (not 32-bit, not 64-bit?)
 #endif
@@ -63,14 +65,14 @@ typedef struct jkn_ff_adjusted_mantissa {
 #endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#define FASTFLOAT_VISUAL_STUDIO 1
+#define FFC_VISUAL_STUDIO 1
 #endif
 
 /********************* context crack: byte order / endianness *********************/
 #if defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
-#define FASTFLOAT_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define FFC_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 #elif defined _WIN32
-#define FASTFLOAT_IS_BIG_ENDIAN 0
+#define FFC_IS_BIG_ENDIAN 0
 #else
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <machine/endian.h>
@@ -88,65 +90,65 @@ typedef struct jkn_ff_adjusted_mantissa {
 #
 #ifndef __BYTE_ORDER__
 // safe choice
-#define FASTFLOAT_IS_BIG_ENDIAN 0
+#define FFC_IS_BIG_ENDIAN 0
 #endif
 #
 #ifndef __ORDER_LITTLE_ENDIAN__
 // safe choice
-#define FASTFLOAT_IS_BIG_ENDIAN 0
+#define FFC_IS_BIG_ENDIAN 0
 #endif
 #
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define FASTFLOAT_IS_BIG_ENDIAN 0
+#define FFC_IS_BIG_ENDIAN 0
 #else
-#define FASTFLOAT_IS_BIG_ENDIAN 1
+#define FFC_IS_BIG_ENDIAN 1
 #endif
 #endif
 
 /********************* context crack: simd *********************/
-#if defined(__SSE2__) || (defined(FASTFLOAT_VISUAL_STUDIO) &&                  \
+#if defined(__SSE2__) || (defined(FFC_VISUAL_STUDIO) &&                  \
                           (defined(_M_AMD64) || defined(_M_X64) ||             \
                            (defined(_M_IX86_FP) && _M_IX86_FP == 2)))
-#define FASTFLOAT_SSE2 1
+#define FFC_SSE2 1
 #endif
 
 #if defined(__aarch64__) || defined(_M_ARM64)
-#define FASTFLOAT_NEON 1
+#define FFC_NEON 1
 #endif
 
-#if defined(FASTFLOAT_SSE2) || defined(FASTFLOAT_NEON)
-#define FASTFLOAT_HAS_SIMD 1
+#if defined(FFC_SSE2) || defined(FFC_NEON)
+#define FFC_HAS_SIMD 1
 #endif
 
-#ifdef FASTFLOAT_SSE2
+#ifdef FFC_SSE2
 #include <emmintrin.h>
 #endif
 
-#ifdef FASTFLOAT_NEON
+#ifdef FFC_NEON
 #include <arm_neon.h>
 #endif
 
 
 #if defined(__GNUC__)
 // disable -Wcast-align=strict (GCC only)
-#define FASTFLOAT_SIMD_DISABLE_WARNINGS                                        \
+#define FFC_SIMD_DISABLE_WARNINGS                                        \
   _Pragma("GCC diagnostic push")                                               \
       _Pragma("GCC diagnostic ignored \"-Wcast-align\"")
 #else
-#define FASTFLOAT_SIMD_DISABLE_WARNINGS
+#define FFC_SIMD_DISABLE_WARNINGS
 #endif
 
 #if defined(__GNUC__)
-#define FASTFLOAT_SIMD_RESTORE_WARNINGS _Pragma("GCC diagnostic pop")
+#define FFC_SIMD_RESTORE_WARNINGS _Pragma("GCC diagnostic pop")
 #else
-#define FASTFLOAT_SIMD_RESTORE_WARNINGS
+#define FFC_SIMD_RESTORE_WARNINGS
 #endif
 
 #if (FLT_EVAL_METHOD != 1) && (FLT_EVAL_METHOD != 0)
-  #define DOUBLE_MIN_EXPONENT_FAST_PATH 0
+  #define FFC_DOUBLE_MIN_EXPONENT_FAST_PATH 0
   #define FLOAT_MIN_EXPONENT_FAST_PATH  0
 #else
-  #define DOUBLE_MIN_EXPONENT_FAST_PATH -22
+  #define FFC_DOUBLE_MIN_EXPONENT_FAST_PATH -22
   #define FLOAT_MIN_EXPONENT_FAST_PATH  -10
 #endif
 
@@ -204,10 +206,10 @@ jkn_ff_u128 jkn_ff_full_multiplication(uint64_t a, uint64_t b) {
   // But MinGW on ARM64 doesn't have native support for 64-bit multiplications
   answer.high = __umulh(a, b);
   answer.low = a * b;
-#elif defined(FASTFLOAT_32BIT) || (defined(_WIN64) && !defined(__clang__) &&   \
+#elif defined(FFC_32BIT) || (defined(_WIN64) && !defined(__clang__) &&   \
                                    !defined(_M_ARM64) && !defined(__GNUC__))
   answer.low = _umul128(a, b, &answer.high); // _umul128 not available on ARM64
-#elif defined(FASTFLOAT_64BIT) && defined(__SIZEOF_INT128__)
+#elif defined(FFC_64BIT) && defined(__SIZEOF_INT128__)
   __uint128_t r = ((__uint128_t)a) * b;
   answer.low = (uint64_t)(r);
   answer.high = (uint64_t)(r >> 64);
@@ -217,38 +219,38 @@ jkn_ff_u128 jkn_ff_full_multiplication(uint64_t a, uint64_t b) {
   return answer;
 }
 
-// nocommit: qualify and undef these
-#define DOUBLE_SMALLEST_POWER_OF_10        -342
-#define DOUBLE_LARGEST_POWER_OF_10         308
-#define DOUBLE_SIGN_INDEX                  63
-#define DOUBLE_INFINITE_POWER              0x7FF
-#define DOUBLE_MANTISSA_EXPLICIT_BITS      52
-#define DOUBLE_MINIMUM_EXPONENT            -1023
-#define DOUBLE_MIN_EXPONENT_ROUND_TO_EVEN  -4
-#define DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN  23
-#define DOUBLE_MAX_EXPONENT_FAST_PATH      22
-#define DOUBLE_MAX_MANTISSA_FAST_PATH      ((uint64_t)(2) << DOUBLE_MANTISSA_EXPLICIT_BITS)
-#define DOUBLE_EXPONENT_MASK               0x7FF0000000000000
-#define DOUBLE_MANTISSA_MASK               0x000FFFFFFFFFFFFF
-#define DOUBLE_HIDDEN_BIT_MASK             0x0010000000000000
-#define DOUBLE_MAX_DIGITS                  769
+// nocommit: undef these
+#define FFC_DOUBLE_SMALLEST_POWER_OF_10        -342
+#define FFC_DOUBLE_LARGEST_POWER_OF_10         308
+#define FFC_DOUBLE_SIGN_INDEX                  63
+#define FFC_DOUBLE_INFINITE_POWER              0x7FF
+#define FFC_DOUBLE_MANTISSA_EXPLICIT_BITS      52
+#define FFC_DOUBLE_MINIMUM_EXPONENT            -1023
+#define FFC_DOUBLE_MIN_EXPONENT_ROUND_TO_EVEN  -4
+#define FFC_DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN  23
+#define FFC_DOUBLE_MAX_EXPONENT_FAST_PATH      22
+#define FFC_DOUBLE_MAX_MANTISSA_FAST_PATH      ((uint64_t)(2) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS)
+#define FFC_DOUBLE_EXPONENT_MASK               0x7FF0000000000000
+#define FFC_DOUBLE_MANTISSA_MASK               0x000FFFFFFFFFFFFF
+#define FFC_DOUBLE_HIDDEN_BIT_MASK             0x0010000000000000
+#define FFC_DOUBLE_MAX_DIGITS                  769
 
-#define FLOAT_SMALLEST_POWER_OF_10         -64
-#define FLOAT_LARGEST_POWER_OF_10          38
-#define FLOAT_SIGN_INDEX                   31
-#define FLOAT_INFINITE_POWER               0xFF
-#define FLOAT_MANTISSA_EXPLICIT_BITS       23
-#define FLOAT_MINIMUM_EXPONENT             -127
-#define FLOAT_MIN_EXPONENT_ROUND_TO_EVEN   -17
-#define FLOAT_MAX_EXPONENT_ROUND_TO_EVEN   10
-#define FLOAT_MAX_EXPONENT_FAST_PATH       10
-#define FLOAT_MAX_MANTISSA_FAST_PATH       (uint64_t(2) << FLOAT_MANTISSA_EXPLICIT_BITS)
-#define FLOAT_EXPONENT_MASK                0x7F800000
-#define FLOAT_MANTISSA_MASK                0x007FFFFF
-#define FLOAT_HIDDEN_BIT_MASK              0x00800000
-#define FLOAT_MAX_DIGITS                   114
+#define FFC_FLOAT_SMALLEST_POWER_OF_10         -64
+#define FFC_FLOAT_LARGEST_POWER_OF_10          38
+#define FFC_FLOAT_SIGN_INDEX                   31
+#define FFC_FLOAT_INFINITE_POWER               0xFF
+#define FFC_FLOAT_MANTISSA_EXPLICIT_BITS       23
+#define FFC_FLOAT_MINIMUM_EXPONENT             -127
+#define FFC_FLOAT_MIN_EXPONENT_ROUND_TO_EVEN   -17
+#define FFC_FLOAT_MAX_EXPONENT_ROUND_TO_EVEN   10
+#define FFC_FLOAT_MAX_EXPONENT_FAST_PATH       10
+#define FFC_FLOAT_MAX_MANTISSA_FAST_PATH       (uint64_t(2) << FLOAT_MANTISSA_EXPLICIT_BITS)
+#define FFC_FLOAT_EXPONENT_MASK                0x7F800000
+#define FFC_FLOAT_MANTISSA_MASK                0x007FFFFF
+#define FFC_FLOAT_HIDDEN_BIT_MASK              0x00800000
+#define FFC_FLOAT_MAX_DIGITS                   114
 
-#define POWERS_OF_5_NUMBER_OF_ENTRIES (2 * (DOUBLE_LARGEST_POWER_OF_10 - DOUBLE_SMALLEST_POWER_OF_10 + 1))
+#define POWERS_OF_5_NUMBER_OF_ENTRIES (2 * (FFC_DOUBLE_LARGEST_POWER_OF_10 - FFC_DOUBLE_SMALLEST_POWER_OF_10 + 1))
 
 // Powers of five from 5^-342 all the way to 5^308 rounded toward one.
 jkn_ff_internal uint64_t jkn_ff_powers_of_five[POWERS_OF_5_NUMBER_OF_ENTRIES] = { 
@@ -398,7 +400,7 @@ bool jkn_ff_rounds_to_nearest() {
 //
 // Note: This may fail to be accurate if fast-math has been
 // enabled, as rounding conventions may not apply.
-#ifdef FASTFLOAT_VISUAL_STUDIO
+#ifdef FFC_VISUAL_STUDIO
 #pragma warning(push)
 //  todo: is there a VS warning?
 //  see
@@ -411,7 +413,7 @@ bool jkn_ff_rounds_to_nearest() {
 #pragma GCC diagnostic ignored "-Wfloat-equal"
 #endif
   return (fmini + 1.0f == 1.0f - fmini);
-#ifdef FASTFLOAT_VISUAL_STUDIO
+#ifdef FFC_VISUAL_STUDIO
 #pragma warning(pop)
 #elif defined(__clang__)
 #pragma clang diagnostic pop
@@ -424,8 +426,8 @@ jkn_ff_internal jkn_ff_inline
 // packs up an adjusted_mantissa into a double
 void jkn_ff_am_to_float_double(bool negative, jkn_ff_adjusted_mantissa am, double* value) {
   uint64_t word = am.mantissa;
-  word = word | (uint64_t)(am.power2) << DOUBLE_MANTISSA_EXPLICIT_BITS;
-  word = word | (uint64_t)(negative) << DOUBLE_SIGN_INDEX;
+  word = word | (uint64_t)(am.power2) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS;
+  word = word | (uint64_t)(negative) << FFC_DOUBLE_SIGN_INDEX;
   memcpy(value, &word, sizeof(double));
 }
 
@@ -433,8 +435,8 @@ jkn_ff_internal jkn_ff_inline
 // packs up an adjusted_mantissa into a double
 void jkn_ff_am_to_float_float(bool negative, jkn_ff_adjusted_mantissa am, float* value) {
   uint64_t word = am.mantissa;
-  word = word | (uint64_t)(am.power2) << FLOAT_MANTISSA_EXPLICIT_BITS;
-  word = word | (uint64_t)(negative) << FLOAT_SIGN_INDEX;
+  word = word | (uint64_t)(am.power2) << FFC_FLOAT_MANTISSA_EXPLICIT_BITS;
+  word = word | (uint64_t)(negative) << FFC_FLOAT_SIGN_INDEX;
   memcpy(value, &word, sizeof(float));
 }
 
@@ -493,6 +495,21 @@ static const uint64_t max_mantissa[] = {
     0x1000000 / (JKN_FF_55555 * JKN_FF_55555),
     0x1000000 / (JKN_FF_55555 * JKN_FF_55555 * 5)};
 
-#define jkn_ff_debug(...) do { if (JKN_FF_DEBUG) { fprintf(stderr, __VA_ARGS__); } } while(0)
+#if JKN_FF_DEBUG
+#include <stdio.h>
+#define jkn_ff_debug(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
+#else
+#define jkn_ff_debug(...) do { } while(0)
+#endif
+
+#ifndef JKN_FF_ASSERT
+#define JKN_FF_ASSERT(x)                                                    \
+  { ((void)(x)); }
+#endif
+
+#ifndef JKN_FF_DEBUG_ASSERT
+#define JKN_FF_DEBUG_ASSERT(x)                                              \
+  { ((void)(x)); }
+#endif
 
 #endif // JKN_FF_COMMON_H

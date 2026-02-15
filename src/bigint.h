@@ -3,30 +3,8 @@
 
 #include "common.h"
 
-#ifndef jkn_ff_internal
-#define jkn_ff_internal static
-#endif
-//nocommit
-#if defined(_MSC_VER)
-  #define jkn_ff_inline __forceinline
-#elif defined(__GNUC__) || defined(__clang__)
-  #define jkn_ff_inline __attribute__((always_inline)) inline
-#else
-  #define jkn_ff_inline inline
-#endif
-
-#ifndef JKN_FF_ASSERT
-#define JKN_FF_ASSERT(x)                                                    \
-  { ((void)(x)); }
-#endif
-
-#ifndef JKN_FF_DEBUG_ASSERT
-#define JKN_FF_DEBUG_ASSERT(x)                                              \
-  { ((void)(x)); }
-#endif
-
 // rust style `try!()` macro, or `?` operator
-#define FASTFLOAT_TRY(x)                                                       \
+#define FFC_TRY(x)                                                       \
   {                                                                            \
     if (!(x))                                                                  \
       return false;                                                            \
@@ -38,12 +16,12 @@
 // architecture except for sparc, which emulates 128-bit multiplication.
 // we might have platforms where `CHAR_BIT` is not 8, so let's avoid
 // doing `8 * sizeof(limb)`.
-#if defined(FASTFLOAT_64BIT) && !defined(__sparc)
-#define FASTFLOAT_64BIT_LIMB 1
+#if defined(FFC_64BIT) && !defined(__sparc)
+#define FFC_64BIT_LIMB 1
 typedef uint64_t limb;
 #define JKN_FF_LIMB_BITS 64
 #else
-#define FASTFLOAT_32BIT_LIMB
+#define FFC_32BIT_LIMB
 typedef uint32_t limb;
 #define JKN_FF_LIMB_BITS 32
 #endif
@@ -244,10 +222,10 @@ limb jkn_ff_bigint_scalar_add(limb x, limb y, bool* overflow) {
 // multiply two small integers, getting both the high and low bits.
 jkn_ff_inline limb
 scalar_mul(limb x, limb y, limb* carry) {
-#ifdef FASTFLOAT_64BIT_LIMB
+#ifdef FFC_64BIT_LIMB
 #if defined(__SIZEOF_INT128__)
   // GCC and clang both define it as an extension.
-  __uint128_t z = (__uint128_t)(x) * (__uint128_t)(y) + (__uint128_t)(carry);
+  __uint128_t z = (__uint128_t)(x) * (__uint128_t)(y) + (__uint128_t)(*carry);
   *carry = (limb)(z >> JKN_FF_LIMB_BITS);
   return (limb)(z);
 #else
@@ -261,7 +239,7 @@ scalar_mul(limb x, limb y, limb* carry) {
   return z.low;
 #endif
 #else
-  uint64_t z = (uint64_t)(x) * (uint64_t)(y) + (uint64_t)(carry);
+  uint64_t z = (uint64_t)(x) * (uint64_t)(y) + (uint64_t)(*carry);
   *carry = (limb)(z >> limb_bits);
   return (limb)(z);
 #endif
@@ -280,7 +258,7 @@ bool small_add_from(sv* sv, limb y, size_t start) {
     index += 1;
   }
   if (carry != 0) {
-    FASTFLOAT_TRY(jkn_ff_sv_try_push(sv, carry));
+    FFC_TRY(jkn_ff_sv_try_push(sv, carry));
   }
   return true;
 }
@@ -292,13 +270,14 @@ bool jkn_ff_bigint_small_add(sv* sv, limb y) {
 }
 
 // multiply bigint by scalar value.
-inline bool jkn_ff_bigint_small_mul(sv* sv, limb y) {
+jkn_ff_internal jkn_ff_inline
+bool jkn_ff_bigint_small_mul(sv* sv, limb y) {
   limb carry = 0;
   for (size_t index = 0; index < sv->len; index++) {
     sv->data[index] = scalar_mul(sv->data[index], y, &carry);
   }
   if (carry != 0) {
-    FASTFLOAT_TRY(jkn_ff_sv_try_push(sv, carry));
+    FFC_TRY(jkn_ff_sv_try_push(sv, carry));
   }
   return true;
 }
@@ -311,14 +290,12 @@ bool large_add_from(sv* x, limb_span y, size_t start) {
 
   // JKN_FF_DIVERGE: We are calling our try_reserve instead of the o.g. try_resize
   if (x->len < start || y.len > x->len - start) {
-    FASTFLOAT_TRY(jkn_ff_sv_try_reserve(x, y.len + start));
+    FFC_TRY(jkn_ff_sv_try_reserve(x, y.len + start));
   }
 
   bool carry = false;
   for (size_t index = 0; index < y.len; index++) {
     limb xi = x->data[index + start];
-    // nocommit: how many times do we call this? Do we need
-    //           the bounds check that the function provides?
     limb yi = span_index(y, index);
     bool c1 = false;
     bool c2 = false;
@@ -333,7 +310,7 @@ bool large_add_from(sv* x, limb_span y, size_t start) {
 
   // handle overflow
   if (carry) {
-    FASTFLOAT_TRY(small_add_from(x, 1, y.len + start));
+    FFC_TRY(small_add_from(x, 1, y.len + start));
   }
   return true;
 }
@@ -354,7 +331,7 @@ bool long_mul(sv* x, limb_span y) {
 
   if (y.len != 0) {
     limb y0 = span_index(y, 0);
-    FASTFLOAT_TRY(jkn_ff_bigint_small_mul(x, y0));
+    FFC_TRY(jkn_ff_bigint_small_mul(x, y0));
     for (size_t index = 1; index < y.len; index++) {
 
       limb yi = span_index(y, index);
@@ -362,10 +339,10 @@ bool long_mul(sv* x, limb_span y) {
 
       if (yi != 0) {
         zi.len = 0;
-        FASTFLOAT_TRY(jkn_ff_sv_try_extend(&zi, zs));
-        FASTFLOAT_TRY(jkn_ff_bigint_small_mul(&zi, yi));
+        FFC_TRY(jkn_ff_sv_try_extend(&zi, zs));
+        FFC_TRY(jkn_ff_bigint_small_mul(&zi, yi));
         limb_span zis = (limb_span){zi.data, zi.len};
-        FASTFLOAT_TRY(large_add_from(x, zis, index));
+        FFC_TRY(large_add_from(x, zis, index));
       }
     }
   }
@@ -377,9 +354,9 @@ bool long_mul(sv* x, limb_span y) {
 // grade-school multiplication algorithm
 bool large_mul(sv* x, limb_span y) {
   if (y.len == 1) {
-    FASTFLOAT_TRY(jkn_ff_bigint_small_mul(x, span_index(y,0)));
+    FFC_TRY(jkn_ff_bigint_small_mul(x, span_index(y,0)));
   } else {
-    FASTFLOAT_TRY(long_mul(x, y));
+    FFC_TRY(long_mul(x, y));
   }
   return true;
 }
@@ -415,7 +392,7 @@ static const uint64_t pow5_tables_small_powers[] = {
     1490116119384765625UL,
     7450580596923828125UL,
 };
-#ifdef FASTFLOAT_64BIT_LIMB
+#ifdef FFC_64BIT_LIMB
   static const limb jkn_ff_large_power_of_5[] = {
       1414648277510068013UL, 9180637584431281687UL, 4539964771860779200UL,
       10482974169319127550UL, 198276706040285095UL};
@@ -434,9 +411,16 @@ typedef struct jkn_ff_bigint {
   sv vec;
 } jkn_ff_bigint;
 
+jkn_ff_bigint jkn_ff_bigint_empty() {
+  sv sv;
+  sv.len = 0;
+  return (jkn_ff_bigint){sv};
+}
+
 jkn_ff_bigint jkn_ff_bigint_make(uint64_t value) {
   sv sv;
-#ifdef FASTFLOAT_64BIT_LIMB
+  sv.len = 0;
+#ifdef FFC_64BIT_LIMB
   jkn_ff_sv_push_unchecked(&sv, value);
 #else
   jkn_ff_sv_push_unchecked(&sv, uint32_t(value));
@@ -450,7 +434,7 @@ jkn_ff_bigint jkn_ff_bigint_make(uint64_t value) {
 // this is to get the significant digits for the float.
 uint64_t jkn_ff_bigint_hi64(jkn_ff_bigint me, bool* truncated) {
   sv vec = me.vec;
-#ifdef FASTFLOAT_64BIT_LIMB
+#ifdef FFC_64BIT_LIMB
   if (vec.len == 0) {
     *truncated = false;
     return 0;
@@ -568,10 +552,10 @@ bool jkn_ff_bigint_shl(jkn_ff_bigint* me, size_t n) {
   size_t rem = n % JKN_FF_LIMB_BITS;
   size_t div = n / JKN_FF_LIMB_BITS;
   if (rem != 0) {
-    FASTFLOAT_TRY(jkn_ff_bigint_shl_bits(me, rem));
+    FFC_TRY(jkn_ff_bigint_shl_bits(me, rem));
   }
   if (div != 0) {
-    FASTFLOAT_TRY(jkn_ff_bigint_shl_limbs(me, div));
+    FFC_TRY(jkn_ff_bigint_shl_limbs(me, div));
   }
   return true;
 }
@@ -582,7 +566,7 @@ int jkn_ff_bigint_ctlz(jkn_ff_bigint me) {
   if (me.vec.len == 0) {
     return 0;
   } else {
-#ifdef FASTFLOAT_64BIT_LIMB
+#ifdef FFC_64BIT_LIMB
     return jkn_ff_count_leading_zeroes(sv_rindex(me.vec, 0));
 #else
     // no use defining a specialized count_leading_zeros for a 32-bit type.
@@ -616,10 +600,10 @@ bool jkn_ff_bigint_pow5(jkn_ff_bigint* me, uint32_t exp) {
   size_t large_length = sizeof(jkn_ff_large_power_of_5) / sizeof(limb);
   limb_span large = (limb_span){ .ptr = (limb*)jkn_ff_large_power_of_5, .len = large_length};
   while (exp >= pow5_tables_large_step) {
-    FASTFLOAT_TRY(large_mul(&me->vec, large));
+    FFC_TRY(large_mul(&me->vec, large));
     exp -= pow5_tables_large_step;
   }
-#ifdef FASTFLOAT_64BIT_LIMB
+#ifdef FFC_64BIT_LIMB
   uint32_t small_step = 27;
   limb max_native = 7450580596923828125UL;
 #else
@@ -627,11 +611,11 @@ bool jkn_ff_bigint_pow5(jkn_ff_bigint* me, uint32_t exp) {
   limb max_native = 1220703125U;
 #endif
   while (exp >= small_step) {
-    FASTFLOAT_TRY(jkn_ff_bigint_small_mul(&me->vec, max_native));
+    FFC_TRY(jkn_ff_bigint_small_mul(&me->vec, max_native));
     exp -= small_step;
   }
   if (exp != 0) {
-    FASTFLOAT_TRY(
+    FFC_TRY(
       jkn_ff_bigint_small_mul(&me->vec, (limb)(pow5_tables_small_powers[exp]))
     );
   }
@@ -643,7 +627,7 @@ bool jkn_ff_bigint_pow5(jkn_ff_bigint* me, uint32_t exp) {
 // nocommit audit for exported symbols
 jkn_ff_internal jkn_ff_inline 
 bool jkn_ff_bigint_pow10(jkn_ff_bigint* me, uint32_t exp) {
-  FASTFLOAT_TRY(jkn_ff_bigint_pow5(me, exp));
+  FFC_TRY(jkn_ff_bigint_pow5(me, exp));
   return jkn_ff_bigint_pow2(me, exp);
 }
 

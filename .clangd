@@ -1,2 +1,2 @@
-   CompileFlags:
-     Add: [-xc]
+CompileFlags:
+  Add: [-xc, -Wall, -Wconversion, -DJKN_FF_IMPL]

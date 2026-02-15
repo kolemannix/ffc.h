@@ -1,28 +1,8 @@
 #define JKN_FF_IMPL
-#define JKN_FF_DEBUG 1
+#define JKN_FF_DEBUG 0
 #include "src/jkn_ff.h"
-
-void verify_ext(char *input, double exp_value, jkn_ff_outcome exp_outcome) {
-  size_t len = strlen(input);
-  double value;
-  jkn_ff_parse_options options = {0};
-
-  printf("\n\ninput: %s\n", input);
-  jkn_ff_result result = from_chars_double(input, &input[len+1], &value, options);
-
-
-  if (exp_outcome != result.outcome) {
-    printf("\tFAIL diff outcome: %d %d\n", exp_outcome, result.outcome); 
-    exit(1);
-  }
-
-  if (exp_outcome == jkn_ff_outcome_ok) {
-    if (exp_value != value) {
-      printf("\texp: %f\n\tact: %f\n\n", exp_value, value);
-      exit(1);
-    }
-  }
-}
+#include <stdlib.h>
+#include <stdio.h>
 
 // Caller owns returned string
 char *append_zeros(const char *str, size_t number_of_zeros) {
@@ -32,6 +12,32 @@ char *append_zeros(const char *str, size_t number_of_zeros) {
   memset(answer + len, '0', number_of_zeros);
   answer[len + number_of_zeros] = '\0';
   return answer;
+}
+
+void verify_ext(char *input, double exp_value, jkn_ff_outcome exp_outcome) {
+  size_t len = strlen(input);
+  double value;
+
+  jkn_ff_result result = from_chars_double(input, &input[len+1], &value);
+
+  if (exp_outcome != result.outcome) {
+    printf("\n\ninput: %s\n", input);
+    printf("\tFAIL diff outcome: %d %d\n", exp_outcome, result.outcome); 
+    exit(1);
+  }
+
+  if (exp_outcome == jkn_ff_outcome_ok) {
+    if (exp_value != value) {
+      printf("\n\ninput: %s\n", input);
+      printf("\texp: %f\n\tact: %f\n\n", exp_value, value);
+      uint64_t exp_bits;
+      uint64_t act_bits;
+      memcpy(&exp_bits, &exp_value, sizeof(double));
+      memcpy(&act_bits, &value, sizeof(double));
+      printf("\texp: 0x%llx\n\tact: 0x%llx\n\n", exp_bits, act_bits);
+      exit(1);
+    }
+  }
 }
 
 #define verify(input, value) verify_ext(input, value, jkn_ff_outcome_ok)
@@ -54,12 +60,10 @@ void double_general(void) {
   verify("0.2470328229206232721e-323", 0x0.0000000000001p-1022);
 
   verify("-2.2222222222223e-322", -0x1.68p-1069);
-  // nocommit digit comp
-  // verify("9007199254740993.0", 0x1p+53);
+  verify("9007199254740993.0", 0x1p+53);
   verify("860228122.6654514319E+90", 0x1.92bb20990715fp+328);
 
-  // nocommit digit comp
-  //verify(append_zeros("9007199254740993.0", 1000), 0x1p+53);
+  verify(append_zeros("9007199254740993.0", 1000), 0x1p+53);
 
   verify("10000000000000000000", 0x1.158e460913dp+63);
   verify("10000000000000000000000000000001000000000000",

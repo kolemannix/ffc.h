@@ -21,7 +21,7 @@ jkn_ff_inline uint64_t
 jkn_ff_read8_to_u64(char const *chars) {
   uint64_t val;
   memcpy(&val, chars, sizeof(uint64_t));
-#if FASTFLOAT_IS_BIG_ENDIAN == 1
+#if FFC_IS_BIG_ENDIAN == 1
   // Need to read as-if the number was in little-endian order.
   val = byteswap(val);
 #endif
@@ -33,18 +33,18 @@ jkn_ff_internal jkn_ff_inline uint32_t
 jkn_ff_read4_to_u32(char const *chars) {
   uint32_t val;
   memcpy(&val, chars, sizeof(uint32_t));
-#if FASTFLOAT_IS_BIG_ENDIAN == 1
+#if FFC_IS_BIG_ENDIAN == 1
   val = byteswap_32(val);
 #endif
   return val;
 }
 
-#ifdef FASTFLOAT_SSE2
+#ifdef FFC_SSE2
 
 jkn_ff_inline uint64_t simd_read8_to_u64_simdreg(__m128i const data) {
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+  FFC_SIMD_DISABLE_WARNINGS
   __m128i const packed = _mm_packus_epi16(data, data);
-#ifdef FASTFLOAT_64BIT
+#ifdef FFC_64BIT
   return (uint64_t)_mm_cvtsi128_si64(packed);
 #else
   uint64_t value;
@@ -52,37 +52,32 @@ jkn_ff_inline uint64_t simd_read8_to_u64_simdreg(__m128i const data) {
   _mm_storel_epi64(&value, packed);
   return value;
 #endif
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
 }
 
 jkn_ff_inline uint64_t simd_read8_to_u64(char16_t const *chars) {
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+  FFC_SIMD_DISABLE_WARNINGS
   return simd_read8_to_u64(
       _mm_loadu_si128(reinterpret_cast<__m128i const *>(chars)));
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
 }
 
-#elif defined(FASTFLOAT_NEON)
+#elif defined(FFC_NEON)
 
 jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64_simdreg(uint16x8_t const data) {
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+  FFC_SIMD_DISABLE_WARNINGS
   uint8x8_t utf8_packed = vmovn_u16(data);
   return vget_lane_u64(vreinterpret_u64_u8(utf8_packed), 0);
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
 }
 
 jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64(uint16_t const *chars) {
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+  FFC_SIMD_DISABLE_WARNINGS
   return jkn_ff_simd_read8_to_u64_simdreg(vld1q_u16(chars));
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
 }
 
-#endif // FASTFLOAT_SSE2
-
-// dummy for compile nocommit
-//uint64_t jkn_ff_simd_read8_to_u64(char const *) {
-//  return 0;
-//}
+#endif // FFC_SSE2
 
 // credit  @aqrit
 jkn_ff_internal jkn_ff_inline uint32_t
@@ -99,10 +94,7 @@ jkn_ff_parse_eight_digits_unrolled_swar(uint64_t val) {
 // Call this if chars are definitely 8 digits.
 jkn_ff_internal jkn_ff_inline
 uint32_t jkn_ff_parse_eight_digits_unrolled(char const *chars) {
-  if (!FASTFLOAT_HAS_SIMD) {
-    return jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_read8_to_u64(chars)); // truncation okay
-  }
-  return jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_simd_read8_to_u64((uint16_t*)chars));
+  return jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_read8_to_u64(chars)); // truncation okay
 }
 
 // credit @aqrit
@@ -124,15 +116,15 @@ uint32_t jkn_ff_parse_four_digits_unrolled(uint32_t val) {
   return (((val & 0x00FF00FF) * 0x00640001) >> 16) & 0xFFFF;
 }
 
-#ifdef FASTFLOAT_HAS_SIMD
+#ifdef FFC_HAS_SIMD
 
 // Call this if chars might not be 8 digits.
 // Using this style (instead of is_made_of_eight_digits_fast() then
 // parse_eight_digits_unrolled()) ensures we don't load SIMD registers twice.
 jkn_ff_internal jkn_ff_inline
 bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_t* i) {
-#ifdef FASTFLOAT_SSE2
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+#ifdef FFC_SSE2
+  FFC_SIMD_DISABLE_WARNINGS
   __m128i const data =
       _mm_loadu_si128((__m128i const *)chars);
 
@@ -146,9 +138,9 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
     return true;
   } else
     return false;
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
-#elif defined(FASTFLOAT_NEON)
-  FASTFLOAT_SIMD_DISABLE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
+#elif defined(FFC_NEON)
+  FFC_SIMD_DISABLE_WARNINGS
   uint16x8_t const data = vld1q_u16(chars);
 
   // (x - '0') <= 9
@@ -161,24 +153,19 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
     return true;
   } else
     return false;
-  FASTFLOAT_SIMD_RESTORE_WARNINGS
+  FFC_SIMD_RESTORE_WARNINGS
 #else
   (void)chars;
   (void)i;
   return false;
-#endif // FASTFLOAT_SSE2
+#endif // FFC_SSE2
 }
 
-#endif // FASTFLOAT_HAS_SIMD
-
-// dummy for compile nocommit
-//bool simd_parse_if_eight_digits_unrolled(char const *, uint64_t &) {
-//  return 0;
-//}
+#endif // FFC_HAS_SIMD
 
 //non-char; forget about it
-//template <typename UC, FASTFLOAT_ENABLE_IF(!std::is_same<UC, char>::value) = 0>
-//jkn_ff_inline FASTFLOAT_CONSTEXPR20 void
+//template <typename UC, FFC_ENABLE_IF(!std::is_same<UC, char>::value) = 0>
+//jkn_ff_inline FFC_CONSTEXPR20 void
 //loop_parse_if_eight_digits(UC const *&p, UC const *const pend, uint64_t &i) {
 //  if (!has_simd_opt<UC>()) {
 //    return;
@@ -207,63 +194,12 @@ jkn_ff_loop_parse_if_eight_digits(char const **p, char const *const pend,
 
 /* section: parse */
 
-typedef uint64_t jkn_ff_chars_format;
-enum jkn_ff_chars_format_bits {
-  JKN_FF_FORMAT_FLAG_SCIENTIFIC         = 1ULL << 0,
-  JKN_FF_FORMAT_FLAG_FIXED              = 1ULL << 2, // Fixed the gap here
-  JKN_FF_FORMAT_FLAG_HEX                = 1ULL << 3,
-  JKN_FF_FORMAT_FLAG_NO_INFNAN          = 1ULL << 4,
-  JKN_FF_FORMAT_FLAG_BASIC_JSON         = 1ULL << 5,
-  JKN_FF_FORMAT_FLAG_BASIC_FORTRAN      = 1ULL << 6,
-  JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS = 1ULL << 7,
-  JKN_FF_FORMAT_FLAG_SKIP_WHITE_SPACE   = 1ULL << 8,
-
-  /* Presets */
-  JKN_FF_PRESET_GENERAL = JKN_FF_FORMAT_FLAG_FIXED | JKN_FF_FORMAT_FLAG_SCIENTIFIC,
-  
-  JKN_FF_PRESET_JSON = JKN_FF_FORMAT_FLAG_BASIC_JSON | 
-                       JKN_FF_PRESET_GENERAL | 
-                       JKN_FF_FORMAT_FLAG_NO_INFNAN,
-
-  JKN_FF_PRESET_JSON_OR_INFNAN = JKN_FF_FORMAT_FLAG_BASIC_JSON | 
-                                 JKN_FF_PRESET_GENERAL,
-
-  JKN_FF_PRESET_FORTRAN = JKN_FF_FORMAT_FLAG_BASIC_FORTRAN | 
-                          JKN_FF_PRESET_GENERAL,
-
-  /* Force the enum to a 64-bit representation in debuggers */
-  _JKN_FF_FORMAT_FORCE_64 = 0xFFFFFFFFFFFFFFFFULL
-};
-
-typedef struct jkn_ff_parse_options {
-  /** Which number formats are accepted */
-  jkn_ff_chars_format format;
-  /** The character used as decimal point */
-  // nocommit: make zero-init use '.' somehow - just communicate that '\0' won't fly?
-  char decimal_point;
-  /** The base used only for integers */
-  // nocommit: make zero-init use '10' somehow - just communicate that 0 will use 10
-  int base;
-} jkn_ff_parse_options;
-
-typedef enum jkn_ff_parse_outcome {
-  no_error = 0,
-  // [JSON-only] The minus sign must be followed by an integer.
-  json_missing_integer_after_sign = 1,
-  // A sign must be followed by an integer or dot.
-  missing_integer_or_dot_after_sign = 2,
-  // [JSON-only] The integer part must not have leading zeros.
-  json_leading_zeros_in_integer_part = 3,
-  // [JSON-only] The integer part must have at least one digit.
-  json_no_digits_in_integer_part = 4,
-  // [JSON-only] If there is a decimal point, there must be digits in the
-  // fractional part.
-  json_no_digits_in_fractional_part = 5,
-  // The mantissa must have at least one digit.
-  no_digits_in_mantissa = 6,
-  // Scientific notation requires an exponential part.
-  missing_exponential_part = 7,
-} jkn_ff_parse_outcome;
+jkn_ff_inline jkn_ff_parse_options jkn_ff_parse_options_default() {
+  jkn_ff_parse_options options;
+  options.format = JKN_FF_PRESET_GENERAL;
+  options.decimal_point = '.';
+  return options;
+}
 
 typedef struct jkn_ff_parsed {
   int64_t  exponent;
@@ -300,20 +236,16 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     bool const basic_json_fmt
 ) {
   jkn_ff_chars_format fmt = options.format;
+  char decimal_point = options.decimal_point;
 
-  // nocommit silly branch
-  if (fmt == 0) {
-    fmt = JKN_FF_PRESET_GENERAL;
-  }
-  // nocommit kinda silly branch
-  char const decimal_point = options.decimal_point == '\0' ? '.' : options.decimal_point;
+  JKN_FF_DEBUG_ASSERT(fmt != 0);
 
   jkn_ff_parsed answer = {0};
   answer.negative = (*p == '-');
   // C++17 20.19.3.(7.1) explicitly forbids '+' sign here
-  // so we only allow it if we've been told to be in json mode
-  // nocommit: what does IEEE say? does it talk about the text format?
-  if ((*p == '-') || (uint64_t)((fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) && !basic_json_fmt && *p == '+')) {
+  // so we only allow it if we've been told to, and are not in json mode
+  bool allow_leading_plus = fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  if ((*p == '-') || (uint64_t)(allow_leading_plus && !basic_json_fmt && *p == '+')) {
     ++p;
     if (p == pend) {
       return jkn_ff_report_parse_error(p, missing_integer_or_dot_after_sign);
@@ -335,7 +267,6 @@ jkn_ff_parsed jkn_ff_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  // nocommit why scan instead of using that SWAR detect digits helper
   while ((p != pend) && jkn_ff_is_integer(*p)) {
     // Horner's method: only ever multiplies by the constant 10
     // avoiding variable power-of-10 multiplies
@@ -349,7 +280,6 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   char const *const end_of_integer_part = p;
 
   int64_t digit_count = (int64_t)(end_of_integer_part - start_digits);
-  // nocommit how do I drop the const without an arbitrary possible erroneous cast
   answer.int_part_start = (char*)start_digits;
   answer.int_part_len = (size_t)(digit_count);
 
@@ -460,7 +390,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   //
   // We can deal with up to 19 digits.
   if (digit_count > 19) { // this is uncommon
-    jkn_ff_debug("digit_count %lld\n", digit_count);
+    jkn_ff_debug("high digit_count %lld\n", digit_count);
     // It is possible that the integer had an overflow.
     // We have to handle the case where we have 0.0000somenumber.
     // We need to be mindful of the case where we only have zeroes...
@@ -473,7 +403,6 @@ jkn_ff_parsed jkn_ff_parse_number_string(
       start++;
     }
 
-    jkn_ff_debug("digit_count2 %lld\n", digit_count);
     if (digit_count > 19) {
       answer.too_many_digits = true;
       // Let us start again, this time, avoiding overflows.
