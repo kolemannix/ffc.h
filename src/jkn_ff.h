@@ -30,27 +30,27 @@ extern "C" {
 /* section: decimal to binary */
 
 jkn_ff_inline jkn_ff_internal
-jkn_ff_u128 jkn_ff_compute_product_approximation_double(int64_t q, uint64_t w) {
+jkn_ff_u128 jkn_ff_compute_product_approximation(int64_t q, uint64_t w, ffc_value_kind vk) {
   // The required precision is mantissa_explicit_bits + 3 because
   // 1. We need the implicit bit
   // 2. We need an extra bit for rounding purposes
   // 3. We might lose a bit due to the "upperbit" routine (result too small,
   // requiring a shift)
-  uint64_t bit_precision = FFC_DOUBLE_MANTISSA_EXPLICIT_BITS + 3;
+  uint64_t bit_precision = ffc_const(vk, MANTISSA_EXPLICIT_BITS) + 3;
   uint64_t precision_mask = ((uint64_t)(0xFFFFFFFFFFFFFFFF) >> bit_precision);
 
-  int const index = 2 * (int)(q - FFC_DOUBLE_SMALLEST_POWER_OF_10);
+  int const index = 2 * (int)(q - ffc_const(vk, SMALLEST_POWER_OF_10));
 
   // For small values of q, e.g., q in [0,27], the answer is always exact
   // because jkn_ff_mul_u64(w, powers_of_five[index]) gives the exact answer.
-  jkn_ff_u128 firstproduct = jkn_ff_mul_u64(w, jkn_ff_powers_of_five[index]);
+  jkn_ff_u128 firstproduct = jkn_ff_mul_u64(w, FFC_POWERS_OF_FIVE[index]);
                            
   if ((firstproduct.high & precision_mask) == precision_mask) {
     // could further guard with  (lower + w < lower)
     // regarding the second product, we only need secondproduct.hi, but our
     // expectation is that the compiler will optimize this extra work away if
     // needed.
-    jkn_ff_u128 secondproduct = jkn_ff_mul_u64(w, jkn_ff_powers_of_five[index + 1]);
+    jkn_ff_u128 secondproduct = jkn_ff_mul_u64(w, FFC_POWERS_OF_FIVE[index + 1]);
 
     firstproduct.low += secondproduct.high;
     if (secondproduct.high > firstproduct.low) {
@@ -87,17 +87,17 @@ jkn_ff_internal jkn_ff_inline int32_t jkn_ff_b10_to_b2(int32_t q) {
 // cases, we return an adjusted_mantissa with a negative power of 2: the caller
 // should recompute in such cases.
 jkn_ff_inline jkn_ff_internal
-jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
+jkn_ff_adjusted_mantissa jkn_ff_compute_float(int64_t q, uint64_t w, ffc_value_kind vk) {
   jkn_ff_adjusted_mantissa answer;
-  if ((w == 0) || (q < FFC_DOUBLE_SMALLEST_POWER_OF_10)) {
+  if ((w == 0) || (q < ffc_const(vk, SMALLEST_POWER_OF_10))) {
     answer.power2 = 0;
     answer.mantissa = 0;
     // result should be zero
     return answer;
   }
-  if (q > FFC_DOUBLE_LARGEST_POWER_OF_10) {
+  if (q > ffc_const(vk, LARGEST_POWER_OF_10)) {
     // we want to get infinity:
-    answer.power2 = FFC_DOUBLE_INFINITE_POWER;
+    answer.power2 = ffc_const(vk, INFINITE_POWER);
     answer.mantissa = 0;
     return answer;
   }
@@ -105,10 +105,10 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
   // powers::largest_power_of_five].
 
   // We want the most significant bit of i to be 1. Shift if needed.
-  int lz = jkn_ff_count_leading_zeroes(w);
+  int32_t lz = (int32_t)jkn_ff_count_leading_zeroes(w);
   w <<= lz;
 
-  jkn_ff_u128 product = jkn_ff_compute_product_approximation_double(q, w);
+  jkn_ff_u128 product = jkn_ff_compute_product_approximation(q, w, vk);
 
   // The computed 'product' is always sufficient.
   // Mathematical proof:
@@ -120,12 +120,12 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
   // practice, we can win big with the compute_product_approximation if its
   // additional branch is easily predicted. Which is data specific.
   int upperbit = (int)(product.high >> 63);
-  int shift = upperbit + 64 - FFC_DOUBLE_MANTISSA_EXPLICIT_BITS - 3;
+  int shift = upperbit + 64 - ffc_const(vk, MANTISSA_EXPLICIT_BITS) - 3;
 
   answer.mantissa = product.high >> shift;
 
   // compute a biased-up power of 2
-  answer.power2 = (int32_t)(jkn_ff_b10_to_b2((int32_t)(q)) + upperbit - lz - FFC_DOUBLE_MINIMUM_EXPONENT);
+  answer.power2 = (int32_t)(jkn_ff_b10_to_b2((int32_t)(q)) + upperbit - lz - ffc_const(vk, MINIMUM_EXPONENT));
 
   if (answer.power2 <= 0) { // subnormal path
 
@@ -154,7 +154,7 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
     // subnormal, but we can only know this after rounding.
     // So we only declare a subnormal if we are smaller than the threshold.
     answer.power2 =
-      (answer.mantissa < ((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS)) ? 0 : 1;
+      (answer.mantissa < ((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS))) ? 0 : 1;
     return answer;
   } // subnormal
 
@@ -165,8 +165,8 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
   // 'extremely sparse low bits in our product' and
   // 'q is within the round to even range' and
   // 'mantissa lowest 2 bits are exactly 01'
-  if ((product.low <= 1) && (q >= FFC_DOUBLE_MIN_EXPONENT_ROUND_TO_EVEN) &&
-      (q <= FFC_DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN) &&
+  if ((product.low <= 1) && (q >= ffc_const(vk, MIN_EXPONENT_ROUND_TO_EVEN)) &&
+      (q <= ffc_const(vk, MAX_EXPONENT_ROUND_TO_EVEN)) &&
       ((answer.mantissa & 3) == 1)) { // we may fall between two floats!
                                       //
     // To be in-between two floats we need that in doing
@@ -183,15 +183,15 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
 
   answer.mantissa += (answer.mantissa & 1); // round up
   answer.mantissa >>= 1;
-  if (answer.mantissa >= ((uint64_t)(2) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS)) {
-    answer.mantissa = ((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS);
+  if (answer.mantissa >= ((uint64_t)(2) << ffc_const(vk, MANTISSA_EXPLICIT_BITS))) {
+    answer.mantissa = ((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS));
     answer.power2++; // undo previous addition
   }
 
   // normalize to pos INF?
-  answer.mantissa &= ~((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS);
-  if (answer.power2 >= FFC_DOUBLE_INFINITE_POWER) { // infinity
-    answer.power2 = FFC_DOUBLE_INFINITE_POWER;
+  answer.mantissa &= ~((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS));
+  if (answer.power2 >= ffc_const(vk, INFINITE_POWER)) { // infinity
+    answer.power2 = ffc_const(vk, INFINITE_POWER);
     answer.mantissa = 0;
   }
   return answer;
@@ -200,11 +200,11 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_float_double(int64_t q, uint64_t w) {
 // create an adjusted mantissa, biased by the invalid power2
 // for significant digits already multiplied by 10 ** q.
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_compute_error_scaled_double(int64_t q, uint64_t w, int lz) {
+jkn_ff_adjusted_mantissa jkn_ff_compute_error_scaled(int64_t q, uint64_t w, int lz, ffc_value_kind vk) {
   int hilz = (int)(w >> 63) ^ 1;
   jkn_ff_adjusted_mantissa answer;
   answer.mantissa = w << hilz;
-  int bias = FFC_DOUBLE_MANTISSA_EXPLICIT_BITS - FFC_DOUBLE_MINIMUM_EXPONENT;
+  int bias = ffc_const(vk, MANTISSA_EXPLICIT_BITS) - ffc_const(vk, MINIMUM_EXPONENT);
   answer.power2 = (int32_t)(jkn_ff_b10_to_b2((int32_t)(q)) + bias - hilz - lz - 62 +
                           JKN_FF_INVALID_AM_BIAS);
   return answer;
@@ -213,11 +213,11 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_error_scaled_double(int64_t q, uint64_t 
 // w * 10 ** q, without rounding the representation up.
 // the power2 in the exponent will be adjusted by invalid_am_bias.
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_compute_error_double(int64_t q, uint64_t w) {
-  int lz = jkn_ff_count_leading_zeroes(w);
+jkn_ff_adjusted_mantissa jkn_ff_compute_error(int64_t q, uint64_t w, ffc_value_kind vk) {
+  int32_t lz = (int32_t)jkn_ff_count_leading_zeroes(w);
   w <<= lz;
-  jkn_ff_u128 product = jkn_ff_compute_product_approximation_double(q, w);
-  return jkn_ff_compute_error_scaled_double(q, product.high, lz);
+  jkn_ff_u128 product = jkn_ff_compute_product_approximation(q, w, vk);
+  return jkn_ff_compute_error_scaled(q, product.high, lz, vk);
 }
 
 /* end section: decimal to binary */
@@ -225,15 +225,16 @@ jkn_ff_adjusted_mantissa jkn_ff_compute_error_double(int64_t q, uint64_t w) {
 /* section: entrypoint */
 
 jkn_ff_internal jkn_ff_inline
-bool jkn_ff_clinger_fast_path_impl_double(uint64_t mantissa, int64_t exponent, bool is_negative,
-                       double* value) {
+bool jkn_ff_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_negative,
+                       ffc_value *value, ffc_value_kind value_kind) {
+  bool is_double = value_kind == FFC_VALUE_KIND_DOUBLE;
   // The implementation of the Clinger's fast path is convoluted because
   // we want round-to-nearest in all cases, irrespective of the rounding mode
   // selected on the thread.
   // We proceed optimistically, assuming that detail::rounds_to_nearest()
   // returns true.
-  if (FFC_DOUBLE_MIN_EXPONENT_FAST_PATH <= exponent &&
-      exponent <= FFC_DOUBLE_MAX_EXPONENT_FAST_PATH) {
+  if (ffc_const(value_kind, MIN_EXPONENT_FAST_PATH) <= exponent &&
+      exponent <= ffc_const(value_kind, MAX_EXPONENT_FAST_PATH)) {
     // Unfortunately, the conventional Clinger's fast path is only possible
     // when the system rounds to the nearest float.
     //
@@ -244,15 +245,24 @@ bool jkn_ff_clinger_fast_path_impl_double(uint64_t mantissa, int64_t exponent, b
     if (jkn_ff_rounds_to_nearest()) {
       // We have that fegetround() == FE_TONEAREST.
       // Next is Clinger's fast path.
-      if (mantissa <= FFC_DOUBLE_MAX_MANTISSA_FAST_PATH) {
-        *value = (double)(mantissa);
+      if (mantissa <= ffc_const(value_kind, MAX_MANTISSA_FAST_PATH)) {
+        jkn_ff_set_value(value, value_kind, mantissa);
+
         if (exponent < 0) {
-          *value = *value / double_powers_of_ten[-exponent];
+          if (is_double) {
+            value->d = value->d / FFC_DOUBLE_POWERS_OF_TEN[-exponent];
+          } else {
+            value->f = value->f / FFC_FLOAT_POWERS_OF_TEN[-exponent];
+          };
         } else {
-          *value = *value * double_powers_of_ten[exponent];
+          if (is_double) {
+            value->d = value->d * FFC_DOUBLE_POWERS_OF_TEN[exponent];
+          } else {
+            value->f = value->f * FFC_FLOAT_POWERS_OF_TEN[exponent];
+          };
         }
         if (is_negative) {
-          *value = -*value;
+          jkn_ff_set_value(value, is_double, -jkn_ff_read_value(value, is_double));
         }
         return true;
       }
@@ -261,17 +271,21 @@ bool jkn_ff_clinger_fast_path_impl_double(uint64_t mantissa, int64_t exponent, b
       // Next is a modified Clinger's fast path, inspired by Jakub Jelínek's
       // proposal
       if (exponent >= 0 &&
-          mantissa <= double_max_mantissa[exponent]) {
+          mantissa <= ffc_const(is_double, MAX_MANTISSA)[exponent]) {
 #if defined(__clang__) || defined(FFC_32BIT)
         // Clang may map 0 to -0.0 when fegetround() == FE_DOWNWARD
         if (mantissa == 0) {
-          *value = is_negative ? -0. : 0.;
+          jkn_ff_set_value(value, is_double, is_negative ? -0. : 0.);
           return true;
         }
 #endif
-        *value = (double)mantissa * double_powers_of_ten[exponent];
+        if (is_double) {
+          value->d = (double)mantissa * FFC_DOUBLE_POWERS_OF_TEN[exponent];
+        } else {
+          value->f = (float)mantissa * FFC_FLOAT_POWERS_OF_TEN[exponent];
+        }
         if (is_negative) {
-          *value = -*value;
+          jkn_ff_set_value(value, value_kind, -jkn_ff_read_value(value, value_kind));
         }
         return true;
       }
@@ -281,105 +295,50 @@ bool jkn_ff_clinger_fast_path_impl_double(uint64_t mantissa, int64_t exponent, b
 }
 
 jkn_ff_internal jkn_ff_inline
-jkn_ff_result jkn_ff_from_chars_advanced_double(jkn_ff_parsed const pns, double* value) {
-
+jkn_ff_result jkn_ff_from_chars_advanced(jkn_ff_parsed const pns, ffc_value* value, ffc_value_kind vk) {
   jkn_ff_result answer;
 
-  answer.outcome = jkn_ff_outcome_ok; // be optimistic :')
+  answer.outcome = JKN_FF_OUTCOME_OK; // be optimistic :')
   answer.ptr = (char*)pns.lastmatch;
 
   if (!pns.too_many_digits &&
-      jkn_ff_clinger_fast_path_impl_double(pns.mantissa, pns.exponent, pns.negative, value))
+      jkn_ff_clinger_fast_path_impl(pns.mantissa, pns.exponent, pns.negative, value, vk))
     return answer;
 
-  jkn_ff_adjusted_mantissa am =
-      jkn_ff_compute_float_double(pns.exponent, pns.mantissa);
+  jkn_ff_adjusted_mantissa am = jkn_ff_compute_float(pns.exponent, pns.mantissa, vk);
   jkn_ff_debug("am.mantissa: %llu\n", am.mantissa);
   jkn_ff_debug("am.power2:   %d\n", am.power2);
   if (pns.too_many_digits && am.power2 >= 0) {
-    jkn_ff_adjusted_mantissa am_plus_one = jkn_ff_compute_float_double(pns.exponent, pns.mantissa + 1);
+    jkn_ff_adjusted_mantissa am_plus_one = jkn_ff_compute_float(pns.exponent, pns.mantissa + 1, vk);
     bool equal = am.mantissa == am_plus_one.mantissa && am.power2 == am_plus_one.power2;
     if (!equal) {
-      am = jkn_ff_compute_error_double(pns.exponent, pns.mantissa);
+      am = jkn_ff_compute_error(pns.exponent, pns.mantissa, vk);
     }
   }
   // If we called compute_float<binary_format<T>>(pns.exponent, pns.mantissa)
   // and we have an invalid power (am.power2 < 0), then we need to go the long
   // way around again. This is very uncommon.
   if (am.power2 < 0) {
+    if (vk != FFC_VALUE_KIND_DOUBLE) {
+      jkn_ff_debug("TODO: digit_comp non-double");
+    };
     am = jkn_ff_digit_comp_double(pns, am);
   }
-  jkn_ff_am_to_float_double(pns.negative, am, value);
+  jkn_ff_am_to_float(pns.negative, am, value, vk);
   jkn_ff_debug("value: %f\n", *value);
   // Test for over/underflow.
   if ((pns.mantissa != 0 && am.mantissa == 0 && am.power2 == 0) ||
-      am.power2 == FFC_DOUBLE_INFINITE_POWER) {
-    answer.outcome = jkn_ff_outcome_out_of_range;
+      am.power2 == ffc_const(vk, INFINITE_POWER)) {
+    answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
   }
   return answer;
 }
 
-/**
- * Special case +inf, -inf, nan, infinity, -infinity.
- * The case comparisons could be made much faster given that we know that the
- * strings a null-free and fixed.
- **/
 jkn_ff_internal jkn_ff_inline
-jkn_ff_result jkn_ff_parse_infnan(
-    char *first, char *last,
-    double* value, jkn_ff_chars_format fmt
-) {
-  jkn_ff_result answer;
-  answer.ptr = first;
-  answer.outcome = jkn_ff_outcome_ok; // be optimistic
-  // assume first < last, so dereference without checks;
-  bool const minusSign = (*first == '-');
-  // C++17 20.19.3.(7.1) explicitly forbids '+' sign here
-  if ((*first == '-') ||
-      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) &&
-       (*first == '+'))) {
-    ++first;
-  }
-  if (last - first >= 3) {
-    if (fastfloat_strncasecmp3(first, "nan", 1)) {
-      answer.ptr = (first += 3);
-      *value = minusSign ? -(double)NAN : (double)NAN;
-      // Check for possible nan(n-char-seq-opt), C++17 20.19.3.7,
-      // C11 7.20.1.3.3. At least MSVC produces nan(ind) and nan(snan).
-      if (first != last && *first == '(') {
-        for (char *ptr = first + 1; ptr != last; ++ptr) {
-          if (*ptr == ')') {
-            answer.ptr = ptr + 1; // valid nan(n-char-seq-opt)
-            break;
-          } else if (!(('a' <= *ptr && *ptr <= 'z') ||
-                       ('A' <= *ptr && *ptr <= 'Z') ||
-                       ('0' <= *ptr && *ptr <= '9') || *ptr == '_'))
-            break; // forbidden char, not nan(n-char-seq-opt)
-        }
-      }
-      return answer;
-    }
-    if (fastfloat_strncasecmp3(first, "infinity", 1)) {
-      if ((last - first >= 8) &&
-          fastfloat_strncasecmp5(first + 3, (char*)&"infinity"[3], 1)) {
-        answer.ptr = first + 8;
-      } else {
-        answer.ptr = first + 3;
-      }
-      *value = minusSign ? -(double)NAN : (double)NAN;
-      return answer;
-    }
-  }
-  answer.outcome = jkn_ff_outcome_invalid_input;
-  return answer;
-}
-
-// internal entrypoint
-jkn_ff_internal jkn_ff_inline
-jkn_ff_result jkn_ff_from_chars_double_options(char* first, char* last, double* value, jkn_ff_parse_options options) {
+jkn_ff_result jkn_ff_from_chars(char* first, char* last, jkn_ff_parse_options options, ffc_value *value, ffc_value_kind vk) {
 
   // Alias for parity with cpp code, no feature macros to apply
-  jkn_ff_chars_format const fmt = options.format;
+  jkn_ff_format const fmt = options.format;
 
   jkn_ff_result answer;
   if ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_SKIP_WHITE_SPACE)) {
@@ -388,7 +347,7 @@ jkn_ff_result jkn_ff_from_chars_double_options(char* first, char* last, double* 
     }
   }
   if (first == last) {
-    answer.outcome = jkn_ff_outcome_invalid_input;
+    answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
     answer.ptr = first;
     return answer;
   }
@@ -401,41 +360,75 @@ jkn_ff_result jkn_ff_from_chars_double_options(char* first, char* last, double* 
 
   if (!pns.valid) {
     if ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_NO_INFNAN)) {
-      answer.outcome = jkn_ff_outcome_invalid_input;
+      answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
       answer.ptr = first;
       return answer;
     } else {
-      return jkn_ff_parse_infnan(first, last, value, fmt);
+      return jkn_ff_parse_infnan(first, last, value, vk, fmt);
     }
   }
 
   // call overload that takes parsed_number_string directly.
-  return jkn_ff_from_chars_advanced_double(pns, value);
+  return jkn_ff_from_chars_advanced(pns, value, vk);
 }
 
-jkn_ff_internal jkn_ff_inline
-jkn_ff_result from_chars_double(char const* first, char const* last, double* value) {
+jkn_ff_result jkn_ff_from_chars_double_options(const char *start, const char *end, double* out, jkn_ff_parse_options options) {
+  // It would be UB to directly use *out as our ffc_value, even though its the same layout
+  ffc_value out_value = {0};
+
+  // The all-important call with a constant VALUE_KIND that should cascade in tons of inlining
+  jkn_ff_result result = jkn_ff_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_DOUBLE);
+  *out = out_value.d;
+  return result;
+
+}
+jkn_ff_result jkn_ff_from_chars_double(char const* first, char const* last, double* out) {
   jkn_ff_parse_options options = jkn_ff_parse_options_default();
-  return jkn_ff_from_chars_double_options((char*)first, (char*)last, value, options);
+  return jkn_ff_from_chars_double_options(first, last, out, options);
 }
 
-#undef FFC_DOUBLE_SMALLEST_POWER_OF_10       
-#undef FFC_DOUBLE_LARGEST_POWER_OF_10        
-#undef FFC_DOUBLE_SIGN_INDEX
-#undef DOUBLE_INFINITE_POWER             
-#undef DOUBLE_MANTISSA_EXPLICIT_BITS     
-#undef DOUBLE_MINIMUM_EXPONENT           
-#undef DOUBLE_MIN_EXPONENT_ROUND_TO_EVEN 
-#undef DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN 
+jkn_ff_result jkn_ff_from_chars_float_options(const char *start,  const char *end, float* out, jkn_ff_parse_options options) {
+  ffc_value out_value = {0};
+  jkn_ff_result result = jkn_ff_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_FLOAT);
+  *out = out_value.f;
+  return result;
+}
+jkn_ff_result jkn_ff_from_chars_float(char const* first, char const* last, float* out) {
+  jkn_ff_parse_options options = jkn_ff_parse_options_default();
+  return jkn_ff_from_chars_float_options(first, last, out, options);
+}
 
-#undef FFC_FLOAT_SMALLEST_POWER_OF_10        
-#undef FFC_FLOAT_LARGEST_POWER_OF_10         
-#undef FFC_FLOAT_SIGN_INDEX
-#undef FFC_FLOAT_INFINITE_POWER              
-#undef FFC_FLOAT_MANTISSA_EXPLICIT_BITS      
-#undef FFC_FLOAT_MINIMUM_EXPONENT            
-#undef FFC_FLOAT_MIN_EXPONENT_ROUND_TO_EVEN  
-#undef FFC_FLOAT_MAX_EXPONENT_ROUND_TO_EVEN  
+#undef FFC_DOUBLE_SMALLEST_POWER_OF_10        
+#undef FFC_DOUBLE_LARGEST_POWER_OF_10         
+#undef FFC_DOUBLE_SIGN_INDEX                  
+#undef FFC_DOUBLE_INFINITE_POWER              
+#undef FFC_DOUBLE_MANTISSA_EXPLICIT_BITS      
+#undef FFC_DOUBLE_MINIMUM_EXPONENT            
+#undef FFC_DOUBLE_MIN_EXPONENT_ROUND_TO_EVEN  
+#undef FFC_DOUBLE_MAX_EXPONENT_ROUND_TO_EVEN  
+#undef FFC_DOUBLE_MAX_EXPONENT_FAST_PATH      
+#undef FFC_DOUBLE_MAX_MANTISSA_FAST_PATH      
+#undef FFC_DOUBLE_EXPONENT_MASK               
+#undef FFC_DOUBLE_MANTISSA_MASK               
+#undef FFC_DOUBLE_HIDDEN_BIT_MASK             
+#undef FFC_DOUBLE_MAX_DIGITS                  
+
+#undef FFC_FLOAT_SMALLEST_POWER_OF_10         
+#undef FFC_FLOAT_LARGEST_POWER_OF_10          
+#undef FFC_FLOAT_SIGN_INDEX                   
+#undef FFC_FLOAT_INFINITE_POWER               
+#undef FFC_FLOAT_MANTISSA_EXPLICIT_BITS       
+#undef FFC_FLOAT_MINIMUM_EXPONENT             
+#undef FFC_FLOAT_MIN_EXPONENT_ROUND_TO_EVEN   
+#undef FFC_FLOAT_MAX_EXPONENT_ROUND_TO_EVEN   
+#undef FFC_FLOAT_MAX_EXPONENT_FAST_PATH       
+#undef FFC_FLOAT_MAX_MANTISSA_FAST_PATH       
+#undef FFC_FLOAT_EXPONENT_MASK                
+#undef FFC_FLOAT_MANTISSA_MASK                
+#undef FFC_FLOAT_HIDDEN_BIT_MASK              
+#undef FFC_FLOAT_MAX_DIGITS                   
+
+#define FFC_POWERS_OF_5_NUMBER_OF_ENTRIES (2 * (FFC_DOUBLE_LARGEST_POWER_OF_10 - FFC_DOUBLE_SMALLEST_POWER_OF_10 + 1))
 
 #endif /* JKN_FF_IMPL */
 

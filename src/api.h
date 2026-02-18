@@ -4,11 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef enum jkn_ff_outcome {
-  jkn_ff_outcome_ok = 0,
-  jkn_ff_outcome_invalid_input = 1,
-  jkn_ff_outcome_out_of_range = 2,
-} jkn_ff_outcome;
+typedef uint32_t jkn_ff_outcome;
+enum jkn_ff_outcome_bits {
+  JKN_FF_OUTCOME_OK = 0,
+  JKN_FF_OUTCOME_INVALID_INPUT = 1,
+  JKN_FF_OUTCOME_OUT_OF_RANGE = 2,
+};
 
 typedef struct jkn_ff_result {
   // Where parsing stopped
@@ -17,8 +18,8 @@ typedef struct jkn_ff_result {
   jkn_ff_outcome outcome;
 } jkn_ff_result;
 
-typedef uint64_t jkn_ff_chars_format;
-enum jkn_ff_chars_format_bits {
+typedef uint64_t jkn_ff_format;
+enum jkn_ff_format_bits {
   JKN_FF_FORMAT_FLAG_SCIENTIFIC         = 1ULL << 0,
   JKN_FF_FORMAT_FLAG_FIXED              = 1ULL << 2, // Fixed the gap here
   JKN_FF_FORMAT_FLAG_HEX                = 1ULL << 3,
@@ -47,7 +48,7 @@ enum jkn_ff_chars_format_bits {
 
 typedef struct jkn_ff_parse_options {
   /** Which number formats are accepted */
-  jkn_ff_chars_format format;
+  jkn_ff_format format;
   /** The character used as decimal point; period will be used if decimal_point == '\0' */
   char decimal_point;
   /** The base used only for integers */
@@ -57,29 +58,35 @@ typedef struct jkn_ff_parse_options {
 jkn_ff_parse_options jkn_ff_parse_options_default();
 
 typedef enum jkn_ff_parse_outcome {
-  no_error = 0,
+  JKN_FF_PARSE_OUTCOME_NO_ERROR = 0,
   // [JSON-only] The minus sign must be followed by an integer.
-  json_missing_integer_after_sign = 1,
+  JKN_FF_PARSE_OUTCOME_JSON_MISSING_INTEGER_AFTER_SIGN = 1,
   // A sign must be followed by an integer or dot.
-  missing_integer_or_dot_after_sign = 2,
+  JKN_FF_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN = 2,
   // [JSON-only] The integer part must not have leading zeros.
-  json_leading_zeros_in_integer_part = 3,
+  JKN_FF_PARSE_OUTCOME_JSON_LEADING_ZEROS_IN_INTEGER_PART = 3,
   // [JSON-only] The integer part must have at least one digit.
-  json_no_digits_in_integer_part = 4,
+  JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_INTEGER_PART = 4,
   // [JSON-only] If there is a decimal point, there must be digits in the
   // fractional part.
-  json_no_digits_in_fractional_part = 5,
+  JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_FRACTIONAL_PART = 5,
   // The mantissa must have at least one digit.
-  no_digits_in_mantissa = 6,
+  JKN_FF_PARSE_OUTCOME_NO_DIGITS_IN_MANTISSA = 6,
   // Scientific notation requires an exponential part.
-  missing_exponential_part = 7,
+  JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART = 7,
 } jkn_ff_parse_outcome;
 
-// nocommit: restrict since its char*?
-jkn_ff_result jkn_ff_parse_double(size_t len, const char input[len], double* out);
-jkn_ff_result jkn_ff_parse_float(size_t len, const char input[len], float* out);
+// jkn_ff_result jkn_ff_parse_double(size_t len, const char input[len], double* out);
+// jkn_ff_result jkn_ff_parse_float(size_t len, const char input[len], float* out);
+jkn_ff_result jkn_ff_from_chars_double(const char *start, const char *end, double* out);
+jkn_ff_result jkn_ff_from_chars_float(const char *start,  const char *end, float* out);
+jkn_ff_result jkn_ff_from_chars_double_options(const char *start, const char *end, double* out, jkn_ff_parse_options options);
+jkn_ff_result jkn_ff_from_chars_float_options(const char *start,  const char *end, float* out, jkn_ff_parse_options options);
 
-jkn_ff_result jkn_ff_from_chars_double(const char *start, const char *end, float* out);
-jkn_ff_result jkn_ff_from_chars_float(const char *start,  const char *end, double* out);
+// nocommit implement the integer overloads
+// jkn_ff_result jkn_ff_parse_long(size_t len, const char input[len], long* out);
+// jkn_ff_result jkn_ff_parse_int(size_t len, const char input[len], int* out);
+jkn_ff_result jkn_ff_from_chars_long(const char *start, const char *end, long* out);
+jkn_ff_result jkn_ff_from_chars_int(const char *start,  const char *end, int* out);
 
 #endif // JKN_FF_API

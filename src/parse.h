@@ -2,6 +2,7 @@
 #define JKN_FF_PARSE_H
 
 #include "common.h"
+#include "math.h"
 
 /* section: read digits */
 
@@ -235,7 +236,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     // explicitly passed to encourage optimizer to specialize
     bool const basic_json_fmt
 ) {
-  jkn_ff_chars_format fmt = options.format;
+  jkn_ff_format fmt = options.format;
   char decimal_point = options.decimal_point;
 
   JKN_FF_DEBUG_ASSERT(fmt != 0);
@@ -248,16 +249,16 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   if ((*p == '-') || (uint64_t)(allow_leading_plus && !basic_json_fmt && *p == '+')) {
     ++p;
     if (p == pend) {
-      return jkn_ff_report_parse_error(p, missing_integer_or_dot_after_sign);
+      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
     }
     if (basic_json_fmt) {
       if (!jkn_ff_is_integer(*p)) { // a sign must be followed by an integer
-        return jkn_ff_report_parse_error(p, json_missing_integer_after_sign);
+        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_MISSING_INTEGER_AFTER_SIGN);
       }
     } else {
       // a sign must be followed by an integer or the dot
       if (!jkn_ff_is_integer(*p) && (*p != decimal_point)) { 
-        return jkn_ff_report_parse_error(p, missing_integer_or_dot_after_sign);
+        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
       }
     }
   }
@@ -286,11 +287,11 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   if (basic_json_fmt) {
     // at least 1 digit in integer part
     if (digit_count == 0) {
-      return jkn_ff_report_parse_error(p, json_no_digits_in_integer_part);
+      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_INTEGER_PART);
     }
     // no leading zeros
     if ((start_digits[0] == '0' && digit_count > 1)) {
-      return jkn_ff_report_parse_error(start_digits, json_leading_zeros_in_integer_part);
+      return jkn_ff_report_parse_error(start_digits, JKN_FF_PARSE_OUTCOME_JSON_LEADING_ZEROS_IN_INTEGER_PART);
     }
   }
 
@@ -327,10 +328,10 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   if (basic_json_fmt) {
     // at least 1 digit in fractional part
     if (has_decimal_point && exponent == 0) {
-      return jkn_ff_report_parse_error(p, json_no_digits_in_fractional_part);
+      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_FRACTIONAL_PART);
     }
   } else if (digit_count == 0) { // we must have encountered at least one integer!
-    return jkn_ff_report_parse_error(p, no_digits_in_mantissa);
+    return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_NO_DIGITS_IN_MANTISSA);
   }
 
   /* explicit exponential part */
@@ -357,7 +358,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
         // The exponential part is invalid for scientific notation, so it must
         // be a trailing token for fixed notation. However, fixed notation is
         // disabled, so report a scientific notation error.
-        return jkn_ff_report_parse_error(p, missing_exponential_part);
+        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
       }
       // Otherwise, we will be ignoring the 'e'.
       p = location_of_e;
@@ -378,7 +379,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     // If it scientific and not fixed, we have to bail out.
     if ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_SCIENTIFIC) &&
         !(uint64_t)(fmt & JKN_FF_FORMAT_FLAG_FIXED)) {
-      return jkn_ff_report_parse_error(p, missing_exponential_part);
+      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
     }
   }
   answer.lastmatch = p;
@@ -432,6 +433,68 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   }
   answer.exponent = exponent;
   answer.mantissa = i;
+  return answer;
+}
+
+/**
+ * Special case +inf, -inf, nan, infinity, -infinity.
+ * The case comparisons could be made much faster given that we know that the
+ * strings a null-free and fixed.
+ **/
+jkn_ff_internal jkn_ff_inline
+jkn_ff_result jkn_ff_parse_infnan(
+    char *first, char *last,
+    ffc_value *value,
+    ffc_value_kind vk,
+    jkn_ff_format fmt
+) {
+  jkn_ff_debug("parse_infnan\n");
+  jkn_ff_result answer;
+  answer.ptr = first;
+  answer.outcome = JKN_FF_OUTCOME_OK; // be optimistic
+  // assume first < last, so dereference without checks;
+  bool const minus_sign = (*first == '-');
+  // C++17 20.19.3.(7.1) explicitly forbids '+' sign here
+  if ((*first == '-') ||
+      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) &&
+       (*first == '+'))) {
+    ++first;
+  }
+  if (last - first >= 3) {
+    if (fastfloat_strncasecmp3(first, "nan", 1)) {
+      answer.ptr = (first += 3);
+
+      // The macro casts the literal AFTER applying the negative sign. This is ok:
+      // -NAN is a double negative NaN, and (float)(-NAN) correctly produces a negative float NaN.
+      // Same for infinity — (float)(-INFINITY) gives negative float infinity
+      jkn_ff_set_value(value, vk, minus_sign ? -NAN : NAN);
+      // Check for possible nan(n-char-seq-opt), C++17 20.19.3.7,
+      // C11 7.20.1.3.3. At least MSVC produces nan(ind) and nan(snan).
+      if (first != last && *first == '(') {
+        for (char *ptr = first + 1; ptr != last; ++ptr) {
+          if (*ptr == ')') {
+            answer.ptr = ptr + 1; // valid nan(n-char-seq-opt)
+            break;
+          } else if (!(('a' <= *ptr && *ptr <= 'z') ||
+                       ('A' <= *ptr && *ptr <= 'Z') ||
+                       ('0' <= *ptr && *ptr <= '9') || *ptr == '_'))
+            break; // forbidden char, not nan(n-char-seq-opt)
+        }
+      }
+      return answer;
+    }
+    if (fastfloat_strncasecmp3(first, "infinity", 1)) {
+      if ((last - first >= 8) &&
+          fastfloat_strncasecmp5(first + 3, (char*)&"infinity"[3], 1)) {
+        answer.ptr = first + 8;
+      } else {
+        answer.ptr = first + 3;
+      }
+      jkn_ff_set_value(value, vk, minus_sign ? -INFINITY : INFINITY);
+      return answer;
+    }
+  }
+  answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
   return answer;
 }
 

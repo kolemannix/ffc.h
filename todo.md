@@ -1,0 +1,53 @@
+Double Tests
+- [x] basictest.cpp
+- [x] example_comma_test.cpp
+- [x] example_integer_times_pow10.cpp
+- [x] example_test.cpp
+- [ ] exhaustive32.cpp
+- [ ] exhaustive32_64.cpp
+- [ ] exhaustive32_midpoint.cpp
+- [ ] fast_int.cpp
+- [ ] fixedwidthtest.cpp
+- [ ] fortran.cpp
+- [ ] installation_tests/
+- [ ] ipv4_test.cpp
+- [ ] json_fmt.cpp
+- [ ] long_exhaustive32.cpp
+- [ ] long_exhaustive32_64.cpp
+- [ ] long_random64.cpp
+- [ ] long_test.cpp
+- [ ] p2497.cpp
+- [ ] powersoffive_hardround.cpp
+- [ ] random64.cpp
+- [ ] random_string.cpp
+- [ ] rcppfastfloat_test.cpp
+- [ ] short_random_string.cpp
+- [ ] string_test.cpp
+- [ ] supported_chars_test.cpp
+- [ ] wide_char_test.cpp
+
+
+Float Tests
+- [ ] basictest.cpp
+- [ ] exhaustive32.cpp
+- [ ] exhaustive32_64.cpp
+- [ ] exhaustive32_midpoint.cpp
+- [ ] fast_int.cpp
+- [ ] fixedwidthtest.cpp
+- [ ] fortran.cpp
+- [ ] installation_tests/
+- [ ] ipv4_test.cpp
+- [ ] json_fmt.cpp
+- [ ] long_exhaustive32.cpp
+- [ ] long_exhaustive32_64.cpp
+- [ ] long_random64.cpp
+- [ ] long_test.cpp
+- [ ] p2497.cpp
+- [ ] powersoffive_hardround.cpp
+- [ ] random64.cpp
+- [ ] random_string.cpp
+- [ ] rcppfastfloat_test.cpp
+- [ ] short_random_string.cpp
+- [ ] string_test.cpp
+- [ ] supported_chars_test.cpp
+- [ ] wide_char_test.cpp

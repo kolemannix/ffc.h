@@ -472,8 +472,10 @@ jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp_double(
   // get the value of `b`, rounded down, and get a bigint representation of b+h
   jkn_ff_adjusted_mantissa am_b = am;
   jkn_ff_round_double_down(&am_b);
-  double b;
-  jkn_ff_am_to_float_double(false, am_b, &b);
+  ffc_value v_out;
+  jkn_ff_am_to_float(false, am_b, &v_out, FFC_VALUE_KIND_DOUBLE);
+  double b = v_out.d;
+
   jkn_ff_adjusted_mantissa theor = jkn_ff_to_extended_halfway_double(b);
   jkn_ff_bigint theor_digits = jkn_ff_bigint_make(theor.mantissa);
   int32_t theor_exp = theor.power2;

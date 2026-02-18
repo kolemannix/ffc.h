@@ -1,0 +1,7 @@
+-xc
+-std=c11
+-Wall
+-Wconversion
+-DJKN_FF_IMPL
+-Isrc
+-Itest_src
