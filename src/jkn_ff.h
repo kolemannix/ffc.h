@@ -22,7 +22,6 @@ extern "C" {
 #ifdef JKN_FF_IMPL
 
 #include "common.h"
-#include <math.h>
 
 #include "parse.h"
 #include "digit_comparison.h"
@@ -39,7 +38,9 @@ jkn_ff_u128 jkn_ff_compute_product_approximation(int64_t q, uint64_t w, ffc_valu
   uint64_t bit_precision = ffc_const(vk, MANTISSA_EXPLICIT_BITS) + 3;
   uint64_t precision_mask = ((uint64_t)(0xFFFFFFFFFFFFFFFF) >> bit_precision);
 
-  int const index = 2 * (int)(q - ffc_const(vk, SMALLEST_POWER_OF_10));
+  // Use FFC_DOUBLE_SMALLEST_POWER_OF_10 (-342) regardless of value kind
+  // to index into the shared 128 bit table
+  int const index = 2 * (int)(q - FFC_DOUBLE_SMALLEST_POWER_OF_10);
 
   // For small values of q, e.g., q in [0,27], the answer is always exact
   // because jkn_ff_mul_u64(w, powers_of_five[index]) gives the exact answer.
@@ -246,7 +247,7 @@ bool jkn_ff_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_
       // We have that fegetround() == FE_TONEAREST.
       // Next is Clinger's fast path.
       if (mantissa <= ffc_const(value_kind, MAX_MANTISSA_FAST_PATH)) {
-        jkn_ff_set_value(value, value_kind, mantissa);
+        ffc_set_value(value, value_kind, mantissa);
 
         if (exponent < 0) {
           if (is_double) {
@@ -262,7 +263,7 @@ bool jkn_ff_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_
           };
         }
         if (is_negative) {
-          jkn_ff_set_value(value, is_double, -jkn_ff_read_value(value, is_double));
+          ffc_set_value(value, is_double, -ffc_read_value(value, is_double));
         }
         return true;
       }
@@ -275,7 +276,7 @@ bool jkn_ff_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_
 #if defined(__clang__) || defined(FFC_32BIT)
         // Clang may map 0 to -0.0 when fegetround() == FE_DOWNWARD
         if (mantissa == 0) {
-          jkn_ff_set_value(value, is_double, is_negative ? -0. : 0.);
+          ffc_set_value(value, is_double, is_negative ? -0. : 0.);
           return true;
         }
 #endif
@@ -285,7 +286,7 @@ bool jkn_ff_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_
           value->f = (float)mantissa * FFC_FLOAT_POWERS_OF_TEN[exponent];
         }
         if (is_negative) {
-          jkn_ff_set_value(value, value_kind, -jkn_ff_read_value(value, value_kind));
+          ffc_set_value(value, value_kind, -ffc_read_value(value, value_kind));
         }
         return true;
       }
@@ -302,8 +303,10 @@ jkn_ff_result jkn_ff_from_chars_advanced(jkn_ff_parsed const pns, ffc_value* val
   answer.ptr = (char*)pns.lastmatch;
 
   if (!pns.too_many_digits &&
-      jkn_ff_clinger_fast_path_impl(pns.mantissa, pns.exponent, pns.negative, value, vk))
+      jkn_ff_clinger_fast_path_impl(pns.mantissa, pns.exponent, pns.negative, value, vk)) {
+    jkn_ff_debug("fast path hit");
     return answer;
+  }
 
   jkn_ff_adjusted_mantissa am = jkn_ff_compute_float(pns.exponent, pns.mantissa, vk);
   jkn_ff_debug("am.mantissa: %llu\n", am.mantissa);
@@ -315,15 +318,14 @@ jkn_ff_result jkn_ff_from_chars_advanced(jkn_ff_parsed const pns, ffc_value* val
       am = jkn_ff_compute_error(pns.exponent, pns.mantissa, vk);
     }
   }
-  // If we called compute_float<binary_format<T>>(pns.exponent, pns.mantissa)
+  // If we called jkn_ff_compute_float(pns.exponent, pns.mantissa)
   // and we have an invalid power (am.power2 < 0), then we need to go the long
   // way around again. This is very uncommon.
   if (am.power2 < 0) {
-    if (vk != FFC_VALUE_KIND_DOUBLE) {
-      jkn_ff_debug("TODO: digit_comp non-double");
-    };
-    am = jkn_ff_digit_comp_double(pns, am);
+    am = jkn_ff_digit_comp(pns, am, vk);
   }
+  jkn_ff_debug("am post mantissa: %llu\n", am.mantissa);
+  jkn_ff_debug("am post power2:   %d\n", am.power2);
   jkn_ff_am_to_float(pns.negative, am, value, vk);
   jkn_ff_debug("value: %f\n", *value);
   // Test for over/underflow.

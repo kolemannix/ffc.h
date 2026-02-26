@@ -5,19 +5,9 @@
 #include <float.h> // for NAN, FLT_MIN
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h> // for memcpy
 #include <stdbool.h>
-
-typedef union ffc_value {
-  double d;
-  float f;
-} ffc_value;
-
-typedef uint8_t ffc_value_kind;
-enum ffc_value_kind_bits {
-  FFC_VALUE_KIND_FLOAT = 0,
-  FFC_VALUE_KIND_DOUBLE = 1,
-};
 
 #ifndef jkn_ff_internal
 #define jkn_ff_internal static
@@ -31,18 +21,97 @@ enum ffc_value_kind_bits {
   #define jkn_ff_inline inline
 #endif
 
+#if JKN_FF_DEBUG
+#include <stdio.h>
+#define jkn_ff_debug(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
+#else
+#define jkn_ff_debug(...) do { } while(0)
+#endif
 
-#define jkn_ff_set_value(ptr, value_kind, value) \
-    ((value_kind == FFC_VALUE_KIND_DOUBLE) ? (ptr->d = (double)(value)) : (ptr->f = (float)(value)))
 
-#define jkn_ff_read_value(ptr, value_kind) ((value_kind == FFC_VALUE_KIND_DOUBLE) ? ptr->d : ptr->f)
+jkn_ff_internal jkn_ff_inline
+uint64_t ffc_get_double_bits(double d) {
+  uint64_t bits;
+  memcpy(&bits, &d, sizeof(double));
+  return bits;
+}
+
+jkn_ff_internal jkn_ff_inline
+uint32_t ffc_get_float_bits(float d) {
+  uint32_t bits;
+  memcpy(&bits, &d, sizeof(float));
+  return bits;
+}
+
+typedef union ffc_value {
+  double d;
+  float f;
+} ffc_value;
+
+typedef union ffc_value_bits {
+  uint64_t di;
+  uint32_t fi;
+} ffc_value_bits;
+
+typedef uint8_t ffc_value_kind;
+enum ffc_value_kind_bits {
+  FFC_VALUE_KIND_FLOAT = 0,
+  FFC_VALUE_KIND_DOUBLE = 1,
+};
+
+typedef union ffc_int_value {
+  int64_t  s64;
+  int32_t  s32;
+  uint64_t u64;
+  uint32_t u32;
+} ffc_int_value;
+
+typedef uint8_t ffc_int_kind;
+enum ffc_int_kind_bits {
+  FFC_INT_KIND_S64 = 0,
+  FFC_INT_KIND_S32 = 1,
+  FFC_INT_KIND_U64 = 2,
+  FFC_INT_KIND_U32 = 3,
+};
+
+jkn_ff_internal jkn_ff_inline
+bool ffc_int_kind_is_signed(ffc_int_kind ik) {
+  return ik == FFC_INT_KIND_S64 || ik == FFC_INT_KIND_S32;
+}
+
+
+jkn_ff_internal jkn_ff_inline
+ffc_value_bits ffc_get_value_bits(ffc_value value, ffc_value_kind vk) {
+  if (vk == FFC_VALUE_KIND_DOUBLE) {
+    return (ffc_value_bits){.di=ffc_get_double_bits(value.d)};
+  } else {
+    return (ffc_value_bits){.fi=ffc_get_float_bits(value.f)};
+  }
+}
+
+jkn_ff_internal jkn_ff_inline
+uint64_t ffc_int_value_max(ffc_int_kind ik) {
+  switch (ik) {
+  case FFC_INT_KIND_S64: return INT64_MAX;
+  case FFC_INT_KIND_S32: return INT32_MAX;
+  case FFC_INT_KIND_U64: return UINT64_MAX;
+  case FFC_INT_KIND_U32: return UINT32_MAX;
+  default: return 0; // should never happen
+  }
+}
+
+#define ffc_set_value(ptr, value_kind, value) \
+    (((value_kind) == FFC_VALUE_KIND_DOUBLE) ? ((ptr)->d = (double)(value)) : ((ptr)->f = (float)(value)))
+
+#define ffc_read_value(ptr, value_kind) \
+    (((value_kind) == FFC_VALUE_KIND_DOUBLE) ? (ptr)->d : (ptr)->f)
 
 typedef struct jkn_ff_adjusted_mantissa {
   uint64_t mantissa;
   int32_t power2; // a negative value indicates an invalid result
 } jkn_ff_adjusted_mantissa;
 
-jkn_ff_internal jkn_ff_inline size_t ffc_value_size(ffc_value_kind vk) {
+jkn_ff_internal jkn_ff_inline size_t ffc_get_value_size(ffc_value_kind vk) {
   if (vk == FFC_VALUE_KIND_DOUBLE) {
     return sizeof(double);
   } else {
@@ -145,6 +214,7 @@ jkn_ff_internal jkn_ff_inline size_t ffc_value_size(ffc_value_kind vk) {
 #define FFC_HAS_SIMD 1
 #endif
 
+
 #ifdef FFC_SSE2
 #include <emmintrin.h>
 #endif
@@ -236,7 +306,6 @@ jkn_ff_u128 jkn_ff_full_multiplication(uint64_t a, uint64_t b) {
   return answer;
 }
 
-// nocommit: undef these
 #define FFC_DOUBLE_SMALLEST_POWER_OF_10        -342
 #define FFC_DOUBLE_LARGEST_POWER_OF_10         308
 #define FFC_DOUBLE_SIGN_INDEX                  63
@@ -285,7 +354,7 @@ jkn_ff_internal uint64_t FFC_POWERS_OF_FIVE[FFC_POWERS_OF_5_NUMBER_OF_ENTRIES] =
 };
 
 // lookup table for ascii values
-jkn_ff_internal bool jkn_ff_space_lut[256] = {
+jkn_ff_internal bool JKN_FF_SPACE_LUT[256] = {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -300,12 +369,65 @@ jkn_ff_internal bool jkn_ff_space_lut[256] = {
 };
 
 jkn_ff_internal jkn_ff_inline bool jkn_ff_is_space(char c) {
-  return jkn_ff_space_lut[(uint8_t)c];
+  return JKN_FF_SPACE_LUT[(uint8_t)c];
+}
+
+jkn_ff_internal uint8_t JKN_FF_CHAR_TO_DIGIT_LUT[] = {
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   255, 255,
+      255, 255, 255, 255, 255, 10,  11,  12,  13,  14,  15,  16,  17,  18,  19,
+      20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,  33,  34,
+      35,  255, 255, 255, 255, 255, 255, 10,  11,  12,  13,  14,  15,  16,  17,
+      18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,  30,  31,  32,
+      33,  34,  35,  255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+      255};
+
+jkn_ff_internal jkn_ff_inline 
+uint8_t jkn_ff_char_to_digit(char c) {
+  return JKN_FF_CHAR_TO_DIGIT_LUT[(uint8_t)c];
+}
+
+// Indexed by a 'base'
+jkn_ff_internal size_t JKN_FF_MAXDIGITS_OF_BASE_U64[] = {
+    64, 41, 32, 28, 25, 23, 22, 21, 20, 19, 18, 18, 17, 17, 16, 16, 16, 16,
+    15, 15, 15, 15, 14, 14, 14, 14, 14, 14, 14, 13, 13, 13, 13, 13, 13};
+
+jkn_ff_internal jkn_ff_inline size_t jkn_ff_max_digits_u64(int base) {
+  return JKN_FF_MAXDIGITS_OF_BASE_U64[base];
 }
 
 jkn_ff_internal jkn_ff_inline bool jkn_ff_is_integer(char c) {
   // can be micro-optimized, but compilers are entirely able to optimize it well
   return (unsigned)(c - '0') <= 9u;
+}
+
+
+jkn_ff_internal uint64_t JKN_FF_MIN_SAFE_OF_BASE_U64[] = {
+      9223372036854775808ull,  12157665459056928801ull, 4611686018427387904,
+      7450580596923828125,     4738381338321616896,     3909821048582988049,
+      9223372036854775808ull,  12157665459056928801ull, 10000000000000000000ull,
+      5559917313492231481,     2218611106740436992,     8650415919381337933,
+      2177953337809371136,     6568408355712890625,     1152921504606846976,
+      2862423051509815793,     6746640616477458432,     15181127029874798299ull,
+      1638400000000000000,     3243919932521508681,     6221821273427820544,
+      11592836324538749809ull, 876488338465357824,      1490116119384765625,
+      2481152873203736576,     4052555153018976267,     6502111422497947648,
+      10260628712958602189ull, 15943230000000000000ull, 787662783788549761,
+      1152921504606846976,     1667889514952984961,     2386420683693101056,
+      3379220508056640625,     4738381338321616896};
+
+jkn_ff_internal jkn_ff_inline uint64_t ffc_min_safe_u64_of_base(int base) {
+  return JKN_FF_MIN_SAFE_OF_BASE_U64[base];
 }
 
 jkn_ff_internal jkn_ff_inline
@@ -452,10 +574,17 @@ bool jkn_ff_rounds_to_nearest() {
 jkn_ff_internal jkn_ff_inline
 // packs up an adjusted_mantissa into a double
 void jkn_ff_am_to_float(bool negative, jkn_ff_adjusted_mantissa am, ffc_value* value, ffc_value_kind vk) {
-  uint64_t word = am.mantissa;
-  word = word | (uint64_t)(am.power2) << ffc_const(vk, MANTISSA_EXPLICIT_BITS);
-  word = word | (uint64_t)(negative) << ffc_const(vk, SIGN_INDEX);
-  memcpy(value, &word, ffc_value_size(vk));
+  if (vk == FFC_VALUE_KIND_FLOAT) {
+    uint32_t word = (uint32_t)am.mantissa;
+    word = word | (uint32_t)(am.power2) << ffc_const(vk, MANTISSA_EXPLICIT_BITS);
+    word = word | (uint32_t)(negative) << ffc_const(vk, SIGN_INDEX);
+    memcpy(value, &word, sizeof(uint32_t));
+  } else {
+    uint64_t word = am.mantissa;
+    word = word | (uint64_t)(am.power2) << ffc_const(vk, MANTISSA_EXPLICIT_BITS);
+    word = word | (uint64_t)(negative) << ffc_const(vk, SIGN_INDEX);
+    memcpy(value, &word, sizeof(uint64_t));
+  }
 }
 
 static const double FFC_DOUBLE_POWERS_OF_TEN[] = {
@@ -512,13 +641,6 @@ static const uint64_t FFC_FLOAT_MAX_MANTISSA[] = {
     0x1000000 / (JKN_FF_55555 * 5 * 5 * 5 * 5),
     0x1000000 / (JKN_FF_55555 * JKN_FF_55555),
     0x1000000 / (JKN_FF_55555 * JKN_FF_55555 * 5)};
-
-#if JKN_FF_DEBUG
-#include <stdio.h>
-#define jkn_ff_debug(...) do { fprintf(stderr, __VA_ARGS__); } while(0)
-#else
-#define jkn_ff_debug(...) do { } while(0)
-#endif
 
 #ifndef JKN_FF_ASSERT
 #define JKN_FF_ASSERT(x)                                                    \

@@ -130,9 +130,9 @@ bool jkn_ff_sv_try_reserve(sv* sv, size_t new_len) {
       for (limb* p = first; p < last; p++) {
         *p = 0;
       }
-      sv->len = new_len;
+      sv->len = (uint16_t)new_len;
     } else {
-      sv->len = new_len;
+      sv->len = (uint16_t)new_len;
     }
     return true;
   }
@@ -161,13 +161,13 @@ void jkn_ff_sv_normalize(sv* sv) {
 jkn_ff_internal jkn_ff_inline
 uint64_t uint64_hi64_1(uint64_t r0, bool* truncated) {
   *truncated = false;
-  int shl = jkn_ff_count_leading_zeroes(r0);
+  int shl = (int)jkn_ff_count_leading_zeroes(r0);
   return r0 << shl;
 }
 
 jkn_ff_internal jkn_ff_inline
 uint64_t uint64_hi64_2(uint64_t r0, uint64_t r1, bool* truncated) {
-  int shl = jkn_ff_count_leading_zeroes(r0);
+  int shl = (int)jkn_ff_count_leading_zeroes(r0);
   if (shl == 0) {
     *truncated = r1 != 0;
     return r0;
@@ -303,7 +303,6 @@ bool large_add_from(sv* x, limb_span y, size_t start) {
     if (carry) {
       xi = jkn_ff_bigint_scalar_add(xi, 1, &c2);
     }
-    // nocommit bounds check needed?
     x->data[index + start] = xi;
     carry = c1 | c2;
   }
@@ -536,7 +535,7 @@ bool jkn_ff_bigint_shl_limbs(jkn_ff_bigint* me, size_t n) {
     
     // fill in empty limbs
     limb *first = me->vec.data;
-    limb *last = first + n;
+    // limb *last = first + n;
     // ::std::fill(first, last, 0);
     memset(first, 0, n * sizeof(limb));
     me->vec.len += n;
@@ -567,7 +566,7 @@ int jkn_ff_bigint_ctlz(jkn_ff_bigint me) {
     return 0;
   } else {
 #ifdef FFC_64BIT_LIMB
-    return jkn_ff_count_leading_zeroes(sv_rindex(me.vec, 0));
+    return (int)jkn_ff_count_leading_zeroes(sv_rindex(me.vec, 0));
 #else
     // no use defining a specialized count_leading_zeros for a 32-bit type.
     uint64_t r0 = sv_rindex(me.vec, 0);

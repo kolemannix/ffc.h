@@ -1,5 +1,20 @@
 Double Tests
 - [x] basictest.cpp
+  - [x] double.rounds_to_nearest
+  - [x] double.parse_zero
+  - [x] double.parse_negative_zero
+  - [ ] float.rounds_to_nearest
+  - [x] float.parse_negative_zero
+  - [ ] issue 8
+  - [ ] check_behavior
+  - [ ] decimal_point_parsing
+  - [ ] issue19
+  - [ ] scientific_only
+  - [ ] test_fixed_only
+  - [ ] powers_of_ten
+  - [ ] float.inf
+  - [ ] float.general
+  - [ ] float.decimal_point
 - [x] example_comma_test.cpp
 - [x] example_integer_times_pow10.cpp
 - [x] example_test.cpp

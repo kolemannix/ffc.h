@@ -4,6 +4,8 @@
 #include "common.h"
 #include "math.h"
 
+#include <stdio.h>
+
 /* section: read digits */
 
 jkn_ff_inline uint64_t byteswap(uint64_t val) {
@@ -42,7 +44,7 @@ jkn_ff_read4_to_u32(char const *chars) {
 
 #ifdef FFC_SSE2
 
-jkn_ff_inline uint64_t simd_read8_to_u64_simdreg(__m128i const data) {
+jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64_simdreg(__m128i const data) {
   FFC_SIMD_DISABLE_WARNINGS
   __m128i const packed = _mm_packus_epi16(data, data);
 #ifdef FFC_64BIT
@@ -56,10 +58,10 @@ jkn_ff_inline uint64_t simd_read8_to_u64_simdreg(__m128i const data) {
   FFC_SIMD_RESTORE_WARNINGS
 }
 
-jkn_ff_inline uint64_t simd_read8_to_u64(char16_t const *chars) {
+jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64(uint16_t const *chars) {
   FFC_SIMD_DISABLE_WARNINGS
-  return simd_read8_to_u64(
-      _mm_loadu_si128(reinterpret_cast<__m128i const *>(chars)));
+  return jkn_ff_simd_read8_to_u64_simdreg(
+      _mm_loadu_si128((const __m128i*)chars));
   FFC_SIMD_RESTORE_WARNINGS
 }
 
@@ -125,6 +127,7 @@ uint32_t jkn_ff_parse_four_digits_unrolled(uint32_t val) {
 jkn_ff_internal jkn_ff_inline
 bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_t* i) {
 #ifdef FFC_SSE2
+  printf("sse2\n");
   FFC_SIMD_DISABLE_WARNINGS
   __m128i const data =
       _mm_loadu_si128((__m128i const *)chars);
@@ -163,20 +166,6 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
 }
 
 #endif // FFC_HAS_SIMD
-
-//non-char; forget about it
-//template <typename UC, FFC_ENABLE_IF(!std::is_same<UC, char>::value) = 0>
-//jkn_ff_inline FFC_CONSTEXPR20 void
-//loop_parse_if_eight_digits(UC const *&p, UC const *const pend, uint64_t &i) {
-//  if (!has_simd_opt<UC>()) {
-//    return;
-//  }
-//  while ((std::distance(p, pend) >= 8) &&
-//         simd_parse_if_eight_digits_unrolled(
-//             p, i)) { // in rare cases, this will overflow, but that's ok
-//    p += 8;
-//  }
-//}
 
 jkn_ff_internal jkn_ff_inline void
 jkn_ff_loop_parse_if_eight_digits(char const **p, char const *const pend,
@@ -467,7 +456,7 @@ jkn_ff_result jkn_ff_parse_infnan(
       // The macro casts the literal AFTER applying the negative sign. This is ok:
       // -NAN is a double negative NaN, and (float)(-NAN) correctly produces a negative float NaN.
       // Same for infinity — (float)(-INFINITY) gives negative float infinity
-      jkn_ff_set_value(value, vk, minus_sign ? -NAN : NAN);
+      ffc_set_value(value, vk, minus_sign ? -NAN : NAN);
       // Check for possible nan(n-char-seq-opt), C++17 20.19.3.7,
       // C11 7.20.1.3.3. At least MSVC produces nan(ind) and nan(snan).
       if (first != last && *first == '(') {
@@ -490,11 +479,121 @@ jkn_ff_result jkn_ff_parse_infnan(
       } else {
         answer.ptr = first + 3;
       }
-      jkn_ff_set_value(value, vk, minus_sign ? -INFINITY : INFINITY);
+      ffc_set_value(value, vk, minus_sign ? -INFINITY : INFINITY);
       return answer;
     }
   }
   answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+  return answer;
+}
+
+jkn_ff_internal jkn_ff_inline
+jkn_ff_result ffc_parse_int_string(
+    char const *p,
+    char const *pend,
+    ffc_int_value *value,
+    ffc_int_kind ik,
+    jkn_ff_parse_options options
+  ) {
+  jkn_ff_format const fmt = options.format;
+  int const base = options.base;
+
+  jkn_ff_result answer;
+  char const *const first = p;
+
+  bool const negative = (*p == (char)('-'));
+  if (!ffc_int_kind_is_signed(ik) && negative) {
+    answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+    answer.ptr = (char*)first;
+    return answer;
+  }
+  if ((*p == (char)('-')) ||
+      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) && (*p == (char)('+')))) {
+    ++p;
+  }
+
+  char const *const start_num = p;
+
+  while (p != pend && *p == (char)('0')) {
+    ++p;
+  }
+
+  bool const has_leading_zeros = p > start_num;
+
+  char const *const start_digits = p;
+
+  uint64_t i = 0;
+  if (base == 10) {
+    jkn_ff_loop_parse_if_eight_digits(&p, pend, &i); // use SIMD if possible
+  }
+  while (p != pend) {
+    uint8_t digit = jkn_ff_char_to_digit(*p);
+    if (digit >= base) {
+      break;
+    }
+    i = (uint64_t)(base) * i + digit; // might overflow, check this later
+    p++;
+  }
+
+  size_t digit_count = (size_t)(p - start_digits);
+
+  if (digit_count == 0) {
+    if (has_leading_zeros) {
+      *value = (ffc_int_value){0}; // Largest variants are defined first so this will clear the entire union
+      answer.outcome = JKN_FF_OUTCOME_OK;
+      answer.ptr = p;
+    } else {
+      answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+      answer.ptr = first;
+    }
+    return answer;
+  }
+
+  answer.ptr = p;
+
+  // check u64 overflow
+  size_t max_digits = jkn_ff_max_digits_u64(base);
+  if (digit_count > max_digits) {
+    answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+    return answer;
+  }
+  // this check can be eliminated for all other types, but they will all require
+  // a max_digits(base) equivalent
+  if (digit_count == max_digits && i < ffc_min_safe_u64_of_base(base)) {
+    answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+    return answer;
+  }
+
+  // check other types overflow
+  if (ik != FFC_INT_KIND_U64) {
+    // Allow 1 greater magnitude when negative
+    if (i > ffc_int_value_max(ik) + (uint64_t)(negative)) {
+      answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+      return answer;
+    }
+  }
+
+  // All signed conversion goes through unsigned arithmetic to avoid UB
+  if (negative) {
+    uint64_t neg_i = ~i + 1; // This is the two's complement negation
+    // write into the signed slot via union
+    switch (ik) {
+      case FFC_INT_KIND_S64: value->s64 = (int64_t)neg_i; break; // implementation-defined, but works everywhere
+      case FFC_INT_KIND_S32: value->s32 = (int32_t)(int64_t)neg_i; break;
+      // unsigned kinds can't be negative — guarded by the range check above
+      // case FFC_INT_KIND_S16: value.i16 = (int16_t)(int64_t)neg_i; break;
+      // case FFC_INT_KIND_S8:  value.i8  = (int8_t)(int64_t)neg_i;  break;
+    }
+  } else {
+    switch (ik) {
+      case FFC_INT_KIND_S64: value->s64 = (int64_t)i;          break; 
+      case FFC_INT_KIND_S32: value->s32 = (int32_t)(int64_t)i; break;
+      case FFC_INT_KIND_U64: value->u64 = i;                   break;
+      case FFC_INT_KIND_U32: value->u32 = (uint32_t)i;         break;
+    }
+  }
+
+  answer.outcome = JKN_FF_OUTCOME_OK;
   return answer;
 }
 

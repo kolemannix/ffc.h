@@ -13,7 +13,7 @@ enum jkn_ff_outcome_bits {
 
 typedef struct jkn_ff_result {
   // Where parsing stopped
-  char *ptr;
+  char const *ptr;
   // The outcome of the call
   jkn_ff_outcome outcome;
 } jkn_ff_result;
@@ -76,8 +76,30 @@ typedef enum jkn_ff_parse_outcome {
   JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART = 7,
 } jkn_ff_parse_outcome;
 
-// jkn_ff_result jkn_ff_parse_double(size_t len, const char input[len], double* out);
-// jkn_ff_result jkn_ff_parse_float(size_t len, const char input[len], float* out);
+/**
+ * This function parses the character sequence [first,last) for a number. It
+ * parses floating-point numbers expecting a locale-independent format equivalent
+ * to what is used by std::strtod in the default ("C") locale. The resulting
+ * floating-point value is the closest floating-point value (using either float
+ * or double), using the "round to even" convention for values that would
+ * otherwise fall right in-between two values. That is, we provide exact parsing
+ * according to the IEEE standard.
+ *
+ * Given a successful parse, the pointer (`ptr`) in the returned value is set to
+ * point right after the parsed number, and the `value` referenced is set to the
+ * parsed value. In case of error, the returned `ec` contains a representative
+ * error, otherwise the default (`JKN_FF_OUTCOME_OK`) value is stored.
+ *
+ * The implementation does not allocate heap memory.
+ *
+ * Like the C++17 standard, the `fast_float::from_chars` functions take an
+ * optional last argument of the type `fast_float::chars_format`. It is a bitset
+ * value: we check whether `fmt & fast_float::chars_format::fixed` and `fmt &
+ * fast_float::chars_format::scientific` are set to determine whether we allow
+ * the fixed point and scientific notation respectively. The default is
+ * `fast_float::chars_format::general` which allows both `fixed` and
+ * `scientific`.
+ */
 jkn_ff_result jkn_ff_from_chars_double(const char *start, const char *end, double* out);
 jkn_ff_result jkn_ff_from_chars_float(const char *start,  const char *end, float* out);
 jkn_ff_result jkn_ff_from_chars_double_options(const char *start, const char *end, double* out, jkn_ff_parse_options options);

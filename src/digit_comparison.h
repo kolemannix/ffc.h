@@ -50,50 +50,45 @@ scientific_exponent(uint64_t mantissa, int32_t exponent) {
 
 // this converts a native floating-point number to an extended-precision float.
 jkn_ff_internal jkn_ff_inline jkn_ff_adjusted_mantissa
-jkn_ff_to_extended_double(double value) {
-  uint64_t const exponent_mask = FFC_DOUBLE_EXPONENT_MASK;
-  uint64_t const mantissa_mask = FFC_DOUBLE_MANTISSA_MASK;
-  uint64_t const hidden_bit_mask = FFC_DOUBLE_HIDDEN_BIT_MASK;
+jkn_ff_to_extended(ffc_value value, ffc_value_kind vk) {
+  uint64_t const exponent_mask = ffc_const(vk, EXPONENT_MASK);
+  uint64_t const mantissa_mask = ffc_const(vk, MANTISSA_MASK);
+  uint64_t const hidden_bit_mask = ffc_const(vk, HIDDEN_BIT_MASK);
 
+  // Finish converting this one
   jkn_ff_adjusted_mantissa am;
-  int32_t bias = FFC_DOUBLE_MANTISSA_EXPLICIT_BITS - FFC_DOUBLE_MINIMUM_EXPONENT;
-  uint64_t bits;
-  memcpy(&bits, &value, sizeof(double));
+  int32_t bias = ffc_const(vk, MANTISSA_EXPLICIT_BITS) - ffc_const(vk, MINIMUM_EXPONENT);
+  //ffc_int_value bits = ffc_get_value_bits(value, vk);
 
-  if ((bits & exponent_mask) == 0) {
-    // denormal
-    am.power2 = 1 - bias;
-    am.mantissa = bits & mantissa_mask;
-  } else {
-    // normal
-    am.power2 = (int32_t)((bits & exponent_mask) >> FFC_DOUBLE_MANTISSA_EXPLICIT_BITS);
-    am.power2 -= bias;
-    am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
+  switch (vk) {
+  case FFC_VALUE_KIND_DOUBLE: {
+    uint64_t bits = ffc_get_double_bits(value.d);
+    if ((bits & exponent_mask) == 0) {
+      // denormal
+      am.power2 = 1 - bias;
+      am.mantissa = bits & mantissa_mask;
+    } else {
+      // normal
+      am.power2 = (int32_t)((bits & exponent_mask) >> ffc_const(vk, MANTISSA_EXPLICIT_BITS));
+      am.power2 -= bias;
+      am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
+    }   
+    break;
   }
-
-  return am;
-}
-
-jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_to_extended_float(float value) {
-  uint32_t const exponent_mask = FFC_FLOAT_EXPONENT_MASK;
-  uint32_t const mantissa_mask = FFC_FLOAT_MANTISSA_MASK;
-  uint32_t const hidden_bit_mask = FFC_FLOAT_HIDDEN_BIT_MASK;
-
-  jkn_ff_adjusted_mantissa am;
-  int32_t bias = FFC_FLOAT_MANTISSA_EXPLICIT_BITS - FFC_FLOAT_MINIMUM_EXPONENT;
-  uint32_t bits;
-  memcpy(&bits, &value, sizeof(float));
-
-  if ((bits & exponent_mask) == 0) {
-    // denormal
-    am.power2 = 1 - bias;
-    am.mantissa = bits & mantissa_mask;
-  } else {
-    // normal
-    am.power2 = (int32_t)((bits & exponent_mask) >> FFC_FLOAT_MANTISSA_EXPLICIT_BITS);
-    am.power2 -= bias;
-    am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
+  case FFC_VALUE_KIND_FLOAT: {
+    uint32_t bits = ffc_get_float_bits(value.f);
+    if ((bits & exponent_mask) == 0) {
+      // denormal
+      am.power2 = 1 - bias;
+      am.mantissa = bits & mantissa_mask;
+    } else {
+      // normal
+      am.power2 = (int32_t)((bits & exponent_mask) >> ffc_const(vk, MANTISSA_EXPLICIT_BITS));
+      am.power2 -= bias;
+      am.mantissa = (bits & mantissa_mask) | hidden_bit_mask;
+    }   
+    break;
+  }
   }
 
   return am;
@@ -103,8 +98,8 @@ jkn_ff_adjusted_mantissa jkn_ff_to_extended_float(float value) {
 // we are given a native float that represents b, so we need to adjust it
 // halfway between b and b+u.
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway_double(double value) {
-  jkn_ff_adjusted_mantissa am = jkn_ff_to_extended_double(value);
+jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway(ffc_value value, ffc_value_kind vk) {
+  jkn_ff_adjusted_mantissa am = jkn_ff_to_extended(value, vk);
   am.mantissa <<= 1;
   am.mantissa += 1;
   am.power2 -= 1;
@@ -112,16 +107,7 @@ jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway_double(double value) {
 }
 
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_to_extended_halfway_float(float value) {
-  jkn_ff_adjusted_mantissa am = jkn_ff_to_extended_float(value);
-  am.mantissa <<= 1;
-  am.mantissa += 1;
-  am.power2 -= 1;
-  return am;
-}
-
-jkn_ff_internal jkn_ff_inline
-void jkn_ff_round_down(jkn_ff_adjusted_mantissa* am, int32_t shift) {
+void jkn_ff_round_down_impl(jkn_ff_adjusted_mantissa* am, int32_t shift) {
   if (shift == 64) {
     am->mantissa = 0;
   } else {
@@ -173,57 +159,55 @@ void jkn_ff_round_nearest_tie_even_cmp(jkn_ff_adjusted_mantissa *am,
 // This is the common tail of jkn_ff_round_double factored out to avoid
 // duplicating the carry/infinite checks at every call site.
 jkn_ff_internal jkn_ff_inline
-void jkn_ff_round_double_finish(jkn_ff_adjusted_mantissa *am) {
+void jkn_ff_round_finish(jkn_ff_adjusted_mantissa *am, ffc_value_kind vk) {
   // check for carry
-  if (am->mantissa >= ((uint64_t)(2) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS)) {
-    am->mantissa = ((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS);
+  if (am->mantissa >= ((uint64_t)(2) << ffc_const(vk, MANTISSA_EXPLICIT_BITS))) {
+    am->mantissa = ((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS));
     am->power2++;
   }
 
   // check for infinite: we could have carried to an infinite power
-  am->mantissa &= ~((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS);
-  if (am->power2 >= FFC_DOUBLE_INFINITE_POWER) {
-    am->power2 = FFC_DOUBLE_INFINITE_POWER;
+  am->mantissa &= ~((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS));
+  if (am->power2 >= ffc_const(vk, INFINITE_POWER)) {
+    am->power2 = ffc_const(vk, INFINITE_POWER);
     am->mantissa = 0;
   }
 }
 
 // Common structure for round_double variants
-#define jkn_ff_round_double_core(sub_routine_call) \
+#define jkn_ff_round_core(sub_routine_call, vk) \
   do { \
-    int32_t mantissa_shift = 64 - FFC_DOUBLE_MANTISSA_EXPLICIT_BITS - 1; \
+    int32_t mantissa_shift = 64 - ffc_const(vk, MANTISSA_EXPLICIT_BITS) - 1; \
     if (-am->power2 >= mantissa_shift) { \
       int32_t _shift = -am->power2 + 1; \
       if (_shift > 64) _shift = 64; \
       sub_routine_call; \
-      am->power2 = (am->mantissa < ((uint64_t)(1) << FFC_DOUBLE_MANTISSA_EXPLICIT_BITS)) \
+      am->power2 = (am->mantissa < ((uint64_t)(1) << ffc_const(vk, MANTISSA_EXPLICIT_BITS))) \
                       ? 0 \
                       : 1; \
       return; \
     } \
     { int32_t _shift = mantissa_shift; sub_routine_call; } \
-    jkn_ff_round_double_finish(am); \
+    jkn_ff_round_finish(am, vk); \
   } while (0)
 
 // round down variant of round_double
 jkn_ff_internal jkn_ff_inline
-void jkn_ff_round_double_down(jkn_ff_adjusted_mantissa *am) {
-  jkn_ff_round_double_core(jkn_ff_round_down(am, _shift));
+void jkn_ff_round_down(jkn_ff_adjusted_mantissa *am, ffc_value_kind vk) {
+  jkn_ff_round_core(jkn_ff_round_down_impl(am, _shift), vk);
 }
 
 // tie-even (truncated) variant of round_double
 jkn_ff_internal jkn_ff_inline
-void jkn_ff_round_double_tie_even_truncated(jkn_ff_adjusted_mantissa *am,
-                                            bool truncated) {
-  jkn_ff_round_double_core(
-      jkn_ff_round_nearest_tie_even_truncated(am, _shift, truncated));
+void jkn_ff_round_tie_even_truncated(jkn_ff_adjusted_mantissa *am,
+                                            bool truncated, ffc_value_kind vk) {
+  jkn_ff_round_core(jkn_ff_round_nearest_tie_even_truncated(am, _shift, truncated), vk);
 }
 
 // tie-even (comparison) variant of round_double
 jkn_ff_internal jkn_ff_inline
-void jkn_ff_round_double_tie_even_cmp(jkn_ff_adjusted_mantissa *am, int ord) {
-  jkn_ff_round_double_core(
-      jkn_ff_round_nearest_tie_even_cmp(am, _shift, ord));
+void jkn_ff_round_double_tie_even_cmp(jkn_ff_adjusted_mantissa *am, int ord, ffc_value_kind vk) {
+  jkn_ff_round_core(jkn_ff_round_nearest_tie_even_cmp(am, _shift, ord), vk);
 }
 
 /* 1-byte chars (char, uint8_t) */
@@ -350,7 +334,7 @@ void jkn_ff_add_native(jkn_ff_bigint *big, limb power, limb value) {
 }
 
 jkn_ff_internal jkn_ff_inline
-void round_up_bigint(jkn_ff_bigint *big, size_t *count) {
+void jkn_ff_round_up_bigint(jkn_ff_bigint *big, size_t *count) {
   // need to round-up the digits, but need to avoid rounding
   // ....9999 to ...10000, which could cause a false halfway point.
   jkn_ff_add_native(big, 10, 1);
@@ -394,7 +378,7 @@ void jkn_ff_parse_mantissa(jkn_ff_bigint *result, jkn_ff_parsed num,
         truncated |= is_truncated(num.fraction_part_start, num.fraction_part_start + num.fraction_part_len, 1);
       }
       if (truncated) {
-        round_up_bigint(result, digits);
+        jkn_ff_round_up_bigint(result, digits);
       }
       return;
     } else {
@@ -425,7 +409,7 @@ void jkn_ff_parse_mantissa(jkn_ff_bigint *result, jkn_ff_parsed num,
         jkn_ff_add_native(result, (limb)(jkn_ff_powers_of_ten_uint64[counter]), value);
         bool truncated = is_truncated(p, pend, 1);
         if (truncated) {
-          round_up_bigint(result, digits);
+          jkn_ff_round_up_bigint(result, digits);
         }
         return;
       } else {
@@ -442,7 +426,7 @@ void jkn_ff_parse_mantissa(jkn_ff_bigint *result, jkn_ff_parsed num,
 }
 
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_positive_digit_comp_double(jkn_ff_bigint *bigmant, int32_t exponent) {
+jkn_ff_adjusted_mantissa jkn_ff_positive_digit_comp(jkn_ff_bigint *bigmant, int32_t exponent, ffc_value_kind vk) {
   for (int i = 0; i < bigmant->vec.len; i++) {
     jkn_ff_debug("limb %d: %lld\n", i, bigmant->vec.data[i]);
   }
@@ -450,10 +434,10 @@ jkn_ff_adjusted_mantissa jkn_ff_positive_digit_comp_double(jkn_ff_bigint *bigman
   jkn_ff_adjusted_mantissa answer;
   bool truncated;
   answer.mantissa = jkn_ff_bigint_hi64(*bigmant, &truncated);
-  int bias = FFC_DOUBLE_MANTISSA_EXPLICIT_BITS - FFC_DOUBLE_MINIMUM_EXPONENT;
+  int bias = ffc_const(vk, MANTISSA_EXPLICIT_BITS) - ffc_const(vk, MINIMUM_EXPONENT);
   answer.power2 = jkn_ff_bigint_bit_length(*bigmant) - 64 + bias;
 
-  jkn_ff_round_double_tie_even_truncated(&answer, truncated);
+  jkn_ff_round_tie_even_truncated(&answer, truncated, vk);
 
   return answer;
 }
@@ -464,19 +448,18 @@ jkn_ff_adjusted_mantissa jkn_ff_positive_digit_comp_double(jkn_ff_bigint *bigman
 // we then need to scale by `2^(f- e)`, and then the two significant digits
 // are of the same magnitude.
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp_double(
-    jkn_ff_bigint *bigmant, jkn_ff_adjusted_mantissa am, int32_t exponent) {
+jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp(
+    jkn_ff_bigint *bigmant, jkn_ff_adjusted_mantissa am, int32_t exponent, ffc_value_kind vk) {
   jkn_ff_bigint *real_digits = bigmant;
   int32_t real_exp = exponent;
 
   // get the value of `b`, rounded down, and get a bigint representation of b+h
   jkn_ff_adjusted_mantissa am_b = am;
-  jkn_ff_round_double_down(&am_b);
-  ffc_value v_out;
-  jkn_ff_am_to_float(false, am_b, &v_out, FFC_VALUE_KIND_DOUBLE);
-  double b = v_out.d;
+  jkn_ff_round_down(&am_b, vk);
+  ffc_value b;
+  jkn_ff_am_to_float(false, am_b, &b, FFC_VALUE_KIND_DOUBLE);
 
-  jkn_ff_adjusted_mantissa theor = jkn_ff_to_extended_halfway_double(b);
+  jkn_ff_adjusted_mantissa theor = jkn_ff_to_extended_halfway(b, vk);
   jkn_ff_bigint theor_digits = jkn_ff_bigint_make(theor.mantissa);
   int32_t theor_exp = theor.power2;
 
@@ -495,7 +478,7 @@ jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp_double(
   // compare digits, and use it to direct rounding
   int ord = jkn_ff_bigint_compare(*real_digits, &theor_digits);
   jkn_ff_adjusted_mantissa answer = am;
-  jkn_ff_round_double_tie_even_cmp(&answer, ord);
+  jkn_ff_round_double_tie_even_cmp(&answer, ord, vk);
 
   return answer;
 }
@@ -514,23 +497,23 @@ jkn_ff_adjusted_mantissa jkn_ff_negative_digit_comp_double(
 // the actual digits. we then compare the big integer representations
 // of both, and use that to direct rounding.
 jkn_ff_internal jkn_ff_inline
-jkn_ff_adjusted_mantissa jkn_ff_digit_comp_double(jkn_ff_parsed num, jkn_ff_adjusted_mantissa am) {
+jkn_ff_adjusted_mantissa jkn_ff_digit_comp(jkn_ff_parsed num, jkn_ff_adjusted_mantissa am, ffc_value_kind vk) {
   jkn_ff_debug("digit_comp\n");
   // remove the invalid exponent bias
   am.power2 -= JKN_FF_INVALID_AM_BIAS;
 
   int32_t sci_exp =
       scientific_exponent(num.mantissa, (int32_t)(num.exponent));
-  size_t max_digits = FFC_DOUBLE_MAX_DIGITS;
+  size_t max_digits = ffc_const(vk, MAX_DIGITS);
   size_t digits = 0;
   jkn_ff_bigint bigmant = jkn_ff_bigint_empty();
   jkn_ff_parse_mantissa(&bigmant, num, max_digits, &digits);
   // can't underflow, since digits is at most max_digits.
   int32_t exponent = sci_exp + 1 - (int32_t)(digits);
   if (exponent >= 0) {
-    return jkn_ff_positive_digit_comp_double(&bigmant, exponent);
+    return jkn_ff_positive_digit_comp(&bigmant, exponent, vk);
   } else {
-    return jkn_ff_negative_digit_comp_double(&bigmant, am, exponent);
+    return jkn_ff_negative_digit_comp(&bigmant, am, exponent, vk);
   }
 }
 
