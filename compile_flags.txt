@@ -2,6 +2,6 @@
 -std=c11
 -Wall
 -Wconversion
--DJKN_FF_IMPL
+-DFFC_IMPL
 -Isrc
 -Itest_src

@@ -1,27 +1,27 @@
-#ifndef JKN_FF_PARSE_H
-#define JKN_FF_PARSE_H
+#ifndef FFC_PARSE_H
+#define FFC_PARSE_H
 
 #include "common.h"
-#include "math.h"
+#include <math.h>
 
 #include <stdio.h>
 
 /* section: read digits */
 
-jkn_ff_inline uint64_t byteswap(uint64_t val) {
+ffc_inline uint64_t byteswap(uint64_t val) {
   return (val & 0xFF00000000000000) >> 56 | (val & 0x00FF000000000000) >> 40 |
          (val & 0x0000FF0000000000) >> 24 | (val & 0x000000FF00000000) >> 8  |
          (val & 0x00000000FF000000) <<  8 | (val & 0x0000000000FF0000) << 24 |
          (val & 0x000000000000FF00) << 40 | (val & 0x00000000000000FF) << 56;
 }
 
-jkn_ff_inline uint32_t byteswap_32(uint32_t val) {
+ffc_inline uint32_t byteswap_32(uint32_t val) {
   return (val >> 24) | ((val >> 8) & 0x0000FF00u) | ((val << 8) & 0x00FF0000u) |
          (val << 24);
 }
 
-jkn_ff_inline uint64_t
-jkn_ff_read8_to_u64(char const *chars) {
+ffc_inline uint64_t
+ffc_read8_to_u64(char const *chars) {
   uint64_t val;
   memcpy(&val, chars, sizeof(uint64_t));
 #if FFC_IS_BIG_ENDIAN == 1
@@ -32,8 +32,8 @@ jkn_ff_read8_to_u64(char const *chars) {
 }
 
 // Read 4 UC into a u32. Truncates UC if not char.
-jkn_ff_internal jkn_ff_inline uint32_t
-jkn_ff_read4_to_u32(char const *chars) {
+ffc_internal ffc_inline uint32_t
+ffc_read4_to_u32(char const *chars) {
   uint32_t val;
   memcpy(&val, chars, sizeof(uint32_t));
 #if FFC_IS_BIG_ENDIAN == 1
@@ -44,7 +44,7 @@ jkn_ff_read4_to_u32(char const *chars) {
 
 #ifdef FFC_SSE2
 
-jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64_simdreg(__m128i const data) {
+ffc_inline uint64_t ffc_simd_read8_to_u64_simdreg(__m128i const data) {
   FFC_SIMD_DISABLE_WARNINGS
   __m128i const packed = _mm_packus_epi16(data, data);
 #ifdef FFC_64BIT
@@ -58,33 +58,33 @@ jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64_simdreg(__m128i const data) {
   FFC_SIMD_RESTORE_WARNINGS
 }
 
-jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64(uint16_t const *chars) {
+ffc_inline uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
   FFC_SIMD_DISABLE_WARNINGS
-  return jkn_ff_simd_read8_to_u64_simdreg(
+  return ffc_simd_read8_to_u64_simdreg(
       _mm_loadu_si128((const __m128i*)chars));
   FFC_SIMD_RESTORE_WARNINGS
 }
 
 #elif defined(FFC_NEON)
 
-jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64_simdreg(uint16x8_t const data) {
+ffc_inline uint64_t ffc_simd_read8_to_u64_simdreg(uint16x8_t const data) {
   FFC_SIMD_DISABLE_WARNINGS
   uint8x8_t utf8_packed = vmovn_u16(data);
   return vget_lane_u64(vreinterpret_u64_u8(utf8_packed), 0);
   FFC_SIMD_RESTORE_WARNINGS
 }
 
-jkn_ff_inline uint64_t jkn_ff_simd_read8_to_u64(uint16_t const *chars) {
+ffc_inline uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
   FFC_SIMD_DISABLE_WARNINGS
-  return jkn_ff_simd_read8_to_u64_simdreg(vld1q_u16(chars));
+  return ffc_simd_read8_to_u64_simdreg(vld1q_u16(chars));
   FFC_SIMD_RESTORE_WARNINGS
 }
 
 #endif // FFC_SSE2
 
 // credit  @aqrit
-jkn_ff_internal jkn_ff_inline uint32_t
-jkn_ff_parse_eight_digits_unrolled_swar(uint64_t val) {
+ffc_internal ffc_inline uint32_t
+ffc_parse_eight_digits_unrolled_swar(uint64_t val) {
   uint64_t const mask = 0x000000FF000000FF;
   uint64_t const mul1 = 0x000F424000000064; // 100 + (1000000ULL << 32)
   uint64_t const mul2 = 0x0000271000000001; // 1 + (10000ULL << 32)
@@ -95,25 +95,25 @@ jkn_ff_parse_eight_digits_unrolled_swar(uint64_t val) {
 }
 
 // Call this if chars are definitely 8 digits.
-jkn_ff_internal jkn_ff_inline
-uint32_t jkn_ff_parse_eight_digits_unrolled(char const *chars) {
-  return jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_read8_to_u64(chars)); // truncation okay
+ffc_internal ffc_inline
+uint32_t ffc_parse_eight_digits_unrolled(char const *chars) {
+  return ffc_parse_eight_digits_unrolled_swar(ffc_read8_to_u64(chars)); // truncation okay
 }
 
 // credit @aqrit
-jkn_ff_internal jkn_ff_inline bool
+ffc_internal ffc_inline bool
 is_made_of_eight_digits_fast(uint64_t val) {
   return !((((val + 0x4646464646464646) | (val - 0x3030303030303030)) &
             0x8080808080808080));
 }
 
-jkn_ff_internal jkn_ff_inline bool
+ffc_internal ffc_inline bool
 is_made_of_four_digits_fast(uint32_t val) {
   return !((((val + 0x46464646) | (val - 0x30303030)) & 0x80808080));
 }
 
-jkn_ff_internal jkn_ff_inline
-uint32_t jkn_ff_parse_four_digits_unrolled(uint32_t val) {
+ffc_internal ffc_inline
+uint32_t ffc_parse_four_digits_unrolled(uint32_t val) {
   val -= 0x30303030;
   val = (val * 10) + (val >> 8);
   return (((val & 0x00FF00FF) * 0x00640001) >> 16) & 0xFFFF;
@@ -124,8 +124,8 @@ uint32_t jkn_ff_parse_four_digits_unrolled(uint32_t val) {
 // Call this if chars might not be 8 digits.
 // Using this style (instead of is_made_of_eight_digits_fast() then
 // parse_eight_digits_unrolled()) ensures we don't load SIMD registers twice.
-jkn_ff_internal jkn_ff_inline
-bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_t* i) {
+ffc_internal ffc_inline
+bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_t* i) {
 #ifdef FFC_SSE2
   printf("sse2\n");
   FFC_SIMD_DISABLE_WARNINGS
@@ -138,7 +138,7 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
   __m128i const t1 = _mm_cmpgt_epi16(t0, _mm_set1_epi16(-32759));
 
   if (_mm_movemask_epi8(t1) == 0) {
-    *i = *i * 100000000 + jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_simd_read8_to_u64_simdreg(data));
+    *i = *i * 100000000 + ffc_parse_eight_digits_unrolled_swar(ffc_simd_read8_to_u64_simdreg(data));
     return true;
   } else
     return false;
@@ -153,7 +153,7 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
   uint16x8_t const mask = vcltq_u16(t0, vmovq_n_u16('9' - '0' + 1));
 
   if (vminvq_u16(mask) == 0xFFFF) {
-    *i = *i * 100000000 + jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_simd_read8_to_u64_simdreg(data));
+    *i = *i * 100000000 + ffc_parse_eight_digits_unrolled_swar(ffc_simd_read8_to_u64_simdreg(data));
     return true;
   } else
     return false;
@@ -167,14 +167,14 @@ bool jkn_ff_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint
 
 #endif // FFC_HAS_SIMD
 
-jkn_ff_internal jkn_ff_inline void
-jkn_ff_loop_parse_if_eight_digits(char const **p, char const *const pend,
+ffc_internal ffc_inline void
+ffc_loop_parse_if_eight_digits(char const **p, char const *const pend,
                            uint64_t* i) {
   // optimizes better than parse_if_eight_digits_unrolled() for char.
   while ((pend - *p >= 8) &&
-         is_made_of_eight_digits_fast(jkn_ff_read8_to_u64(*p))) {
+         is_made_of_eight_digits_fast(ffc_read8_to_u64(*p))) {
     *i = (*i * 100000000) +
-        jkn_ff_parse_eight_digits_unrolled_swar(jkn_ff_read8_to_u64(*p)); 
+        ffc_parse_eight_digits_unrolled_swar(ffc_read8_to_u64(*p)); 
         // in rare cases, this will overflow, but that's ok
     *p += 8;
   }
@@ -184,14 +184,14 @@ jkn_ff_loop_parse_if_eight_digits(char const **p, char const *const pend,
 
 /* section: parse */
 
-jkn_ff_inline jkn_ff_parse_options jkn_ff_parse_options_default() {
-  jkn_ff_parse_options options;
-  options.format = JKN_FF_PRESET_GENERAL;
+ffc_inline ffc_parse_options ffc_parse_options_default() {
+  ffc_parse_options options;
+  options.format = FFC_PRESET_GENERAL;
   options.decimal_point = '.';
   return options;
 }
 
-typedef struct jkn_ff_parsed {
+typedef struct ffc_parsed {
   int64_t  exponent;
   uint64_t mantissa;
   /* Populated on error; indicates where parsing failed */
@@ -204,50 +204,50 @@ typedef struct jkn_ff_parsed {
   char*    fraction_part_start;
   size_t   fraction_part_len;
 
-  jkn_ff_parse_outcome outcome;
-} jkn_ff_parsed;
+  ffc_parse_outcome outcome;
+} ffc_parsed;
 
-jkn_ff_internal jkn_ff_inline
-jkn_ff_parsed jkn_ff_report_parse_error(char const *p, jkn_ff_parse_outcome outcome) {
-  jkn_ff_parsed answer;
+ffc_internal ffc_inline
+ffc_parsed ffc_report_parse_error(char const *p, ffc_parse_outcome outcome) {
+  ffc_parsed answer;
   answer.valid = false;
   answer.lastmatch = p;
   answer.outcome = outcome;
   return answer;
 }
 
-jkn_ff_internal jkn_ff_inline
-jkn_ff_parsed jkn_ff_parse_number_string(
+ffc_internal ffc_inline
+ffc_parsed ffc_parse_number_string(
     char const *p,
     // CONTRACT: p < pend
     char const *pend,
-    jkn_ff_parse_options const options,
+    ffc_parse_options const options,
     // explicitly passed to encourage optimizer to specialize
     bool const basic_json_fmt
 ) {
-  jkn_ff_format fmt = options.format;
+  ffc_format fmt = options.format;
   char decimal_point = options.decimal_point;
 
-  JKN_FF_DEBUG_ASSERT(fmt != 0);
+  FFC_DEBUG_ASSERT(fmt != 0);
 
-  jkn_ff_parsed answer = {0};
+  ffc_parsed answer = {0};
   answer.negative = (*p == '-');
   // C++17 20.19.3.(7.1) explicitly forbids '+' sign here
   // so we only allow it if we've been told to, and are not in json mode
-  bool allow_leading_plus = fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  bool allow_leading_plus = fmt & FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
   if ((*p == '-') || (uint64_t)(allow_leading_plus && !basic_json_fmt && *p == '+')) {
     ++p;
     if (p == pend) {
-      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
+      return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
     }
     if (basic_json_fmt) {
-      if (!jkn_ff_is_integer(*p)) { // a sign must be followed by an integer
-        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_MISSING_INTEGER_AFTER_SIGN);
+      if (!ffc_is_integer(*p)) { // a sign must be followed by an integer
+        return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_JSON_MISSING_INTEGER_AFTER_SIGN);
       }
     } else {
       // a sign must be followed by an integer or the dot
-      if (!jkn_ff_is_integer(*p) && (*p != decimal_point)) { 
-        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
+      if (!ffc_is_integer(*p) && (*p != decimal_point)) { 
+        return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
       }
     }
   }
@@ -257,7 +257,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  while ((p != pend) && jkn_ff_is_integer(*p)) {
+  while ((p != pend) && ffc_is_integer(*p)) {
     // Horner's method: only ever multiplies by the constant 10
     // avoiding variable power-of-10 multiplies
 
@@ -276,11 +276,11 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   if (basic_json_fmt) {
     // at least 1 digit in integer part
     if (digit_count == 0) {
-      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_INTEGER_PART);
+      return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_JSON_NO_DIGITS_IN_INTEGER_PART);
     }
     // no leading zeros
     if ((start_digits[0] == '0' && digit_count > 1)) {
-      return jkn_ff_report_parse_error(start_digits, JKN_FF_PARSE_OUTCOME_JSON_LEADING_ZEROS_IN_INTEGER_PART);
+      return ffc_report_parse_error(start_digits, FFC_PARSE_OUTCOME_JSON_LEADING_ZEROS_IN_INTEGER_PART);
     }
   }
 
@@ -293,9 +293,9 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     char const *before = p; 
     // can occur at most twice without overflowing, but let it occur more, since
     // for integers with many digits, digit parsing is the primary bottleneck.
-    jkn_ff_loop_parse_if_eight_digits(&p, pend, &i);
+    ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
-    while ((p != pend) && jkn_ff_is_integer(*p)) {
+    while ((p != pend) && ffc_is_integer(*p)) {
       uint8_t digit = (uint8_t)(*p - (char)('0'));
       ++p;
       i = i * 10 + digit; // in rare cases, this will overflow, but that's ok
@@ -317,17 +317,17 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   if (basic_json_fmt) {
     // at least 1 digit in fractional part
     if (has_decimal_point && exponent == 0) {
-      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_JSON_NO_DIGITS_IN_FRACTIONAL_PART);
+      return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_JSON_NO_DIGITS_IN_FRACTIONAL_PART);
     }
   } else if (digit_count == 0) { // we must have encountered at least one integer!
-    return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_NO_DIGITS_IN_MANTISSA);
+    return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_NO_DIGITS_IN_MANTISSA);
   }
 
   /* explicit exponential part */
   int64_t exp_number = 0; 
-  if (((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_SCIENTIFIC) && (p != pend) &&
+  if (((uint64_t)(fmt & FFC_FORMAT_FLAG_SCIENTIFIC) && (p != pend) &&
        (('e' == *p) || ('E' == *p))) ||
-      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_BASIC_FORTRAN) && (p != pend) &&
+      ((uint64_t)(fmt & FFC_FORMAT_FLAG_BASIC_FORTRAN) && (p != pend) &&
        (('+' == *p) || ('-' == *p) || ('d' == *p) ||
         ('D' == *p)))) {
     char const *location_of_e = p;
@@ -342,17 +342,17 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     } else if ((p != pend) && ('+' == *p)) { // '+' on exponent is allowed by C++17 20.19.3.(7.1)
       ++p;
     }
-    if ((p == pend) || !jkn_ff_is_integer(*p)) {
-      if (!(uint64_t)(fmt & JKN_FF_FORMAT_FLAG_FIXED)) {
+    if ((p == pend) || !ffc_is_integer(*p)) {
+      if (!(uint64_t)(fmt & FFC_FORMAT_FLAG_FIXED)) {
         // The exponential part is invalid for scientific notation, so it must
         // be a trailing token for fixed notation. However, fixed notation is
         // disabled, so report a scientific notation error.
-        return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
+        return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
       }
       // Otherwise, we will be ignoring the 'e'.
       p = location_of_e;
     } else {
-      while ((p != pend) && jkn_ff_is_integer(*p)) {
+      while ((p != pend) && ffc_is_integer(*p)) {
         uint8_t digit = (uint8_t)(*p - '0');
         if (exp_number < 0x10000000) {
           exp_number = 10 * exp_number + digit;
@@ -366,9 +366,9 @@ jkn_ff_parsed jkn_ff_parse_number_string(
     }
   } else {
     // If it scientific and not fixed, we have to bail out.
-    if ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_SCIENTIFIC) &&
-        !(uint64_t)(fmt & JKN_FF_FORMAT_FLAG_FIXED)) {
-      return jkn_ff_report_parse_error(p, JKN_FF_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
+    if ((uint64_t)(fmt & FFC_FORMAT_FLAG_SCIENTIFIC) &&
+        !(uint64_t)(fmt & FFC_FORMAT_FLAG_FIXED)) {
+      return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
     }
   }
   answer.lastmatch = p;
@@ -380,7 +380,7 @@ jkn_ff_parsed jkn_ff_parse_number_string(
   //
   // We can deal with up to 19 digits.
   if (digit_count > 19) { // this is uncommon
-    jkn_ff_debug("high digit_count %lld\n", digit_count);
+    ffc_debug("high digit_count %lld\n", digit_count);
     // It is possible that the integer had an overflow.
     // We have to handle the case where we have 0.0000somenumber.
     // We need to be mindful of the case where we only have zeroes...
@@ -430,22 +430,22 @@ jkn_ff_parsed jkn_ff_parse_number_string(
  * The case comparisons could be made much faster given that we know that the
  * strings a null-free and fixed.
  **/
-jkn_ff_internal jkn_ff_inline
-jkn_ff_result jkn_ff_parse_infnan(
+ffc_internal ffc_inline
+ffc_result ffc_parse_infnan(
     char *first, char *last,
     ffc_value *value,
     ffc_value_kind vk,
-    jkn_ff_format fmt
+    ffc_format fmt
 ) {
-  jkn_ff_debug("parse_infnan\n");
-  jkn_ff_result answer;
+  ffc_debug("parse_infnan\n");
+  ffc_result answer;
   answer.ptr = first;
-  answer.outcome = JKN_FF_OUTCOME_OK; // be optimistic
+  answer.outcome = FFC_OUTCOME_OK; // be optimistic
   // assume first < last, so dereference without checks;
   bool const minus_sign = (*first == '-');
   // C++17 20.19.3.(7.1) explicitly forbids '+' sign here
   if ((*first == '-') ||
-      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) &&
+      ((uint64_t)(fmt & FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS) &&
        (*first == '+'))) {
     ++first;
   }
@@ -483,32 +483,32 @@ jkn_ff_result jkn_ff_parse_infnan(
       return answer;
     }
   }
-  answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+  answer.outcome = FFC_OUTCOME_INVALID_INPUT;
   return answer;
 }
 
-jkn_ff_internal jkn_ff_inline
-jkn_ff_result ffc_parse_int_string(
+ffc_internal ffc_inline
+ffc_result ffc_parse_int_string(
     char const *p,
     char const *pend,
     ffc_int_value *value,
     ffc_int_kind ik,
-    jkn_ff_parse_options options
+    ffc_parse_options options
   ) {
-  jkn_ff_format const fmt = options.format;
+  ffc_format const fmt = options.format;
   int const base = options.base;
 
-  jkn_ff_result answer;
+  ffc_result answer;
   char const *const first = p;
 
   bool const negative = (*p == (char)('-'));
   if (!ffc_int_kind_is_signed(ik) && negative) {
-    answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+    answer.outcome = FFC_OUTCOME_INVALID_INPUT;
     answer.ptr = (char*)first;
     return answer;
   }
   if ((*p == (char)('-')) ||
-      ((uint64_t)(fmt & JKN_FF_FORMAT_FLAG_ALLOW_LEADING_PLUS) && (*p == (char)('+')))) {
+      ((uint64_t)(fmt & FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS) && (*p == (char)('+')))) {
     ++p;
   }
 
@@ -524,10 +524,10 @@ jkn_ff_result ffc_parse_int_string(
 
   uint64_t i = 0;
   if (base == 10) {
-    jkn_ff_loop_parse_if_eight_digits(&p, pend, &i); // use SIMD if possible
+    ffc_loop_parse_if_eight_digits(&p, pend, &i); // use SIMD if possible
   }
   while (p != pend) {
-    uint8_t digit = jkn_ff_char_to_digit(*p);
+    uint8_t digit = ffc_char_to_digit(*p);
     if (digit >= base) {
       break;
     }
@@ -540,10 +540,10 @@ jkn_ff_result ffc_parse_int_string(
   if (digit_count == 0) {
     if (has_leading_zeros) {
       *value = (ffc_int_value){0}; // Largest variants are defined first so this will clear the entire union
-      answer.outcome = JKN_FF_OUTCOME_OK;
+      answer.outcome = FFC_OUTCOME_OK;
       answer.ptr = p;
     } else {
-      answer.outcome = JKN_FF_OUTCOME_INVALID_INPUT;
+      answer.outcome = FFC_OUTCOME_INVALID_INPUT;
       answer.ptr = first;
     }
     return answer;
@@ -552,15 +552,15 @@ jkn_ff_result ffc_parse_int_string(
   answer.ptr = p;
 
   // check u64 overflow
-  size_t max_digits = jkn_ff_max_digits_u64(base);
+  size_t max_digits = ffc_max_digits_u64(base);
   if (digit_count > max_digits) {
-    answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+    answer.outcome = FFC_OUTCOME_OUT_OF_RANGE;
     return answer;
   }
   // this check can be eliminated for all other types, but they will all require
   // a max_digits(base) equivalent
   if (digit_count == max_digits && i < ffc_min_safe_u64_of_base(base)) {
-    answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+    answer.outcome = FFC_OUTCOME_OUT_OF_RANGE;
     return answer;
   }
 
@@ -568,7 +568,7 @@ jkn_ff_result ffc_parse_int_string(
   if (ik != FFC_INT_KIND_U64) {
     // Allow 1 greater magnitude when negative
     if (i > ffc_int_value_max(ik) + (uint64_t)(negative)) {
-      answer.outcome = JKN_FF_OUTCOME_OUT_OF_RANGE;
+      answer.outcome = FFC_OUTCOME_OUT_OF_RANGE;
       return answer;
     }
   }
@@ -593,26 +593,26 @@ jkn_ff_result ffc_parse_int_string(
     }
   }
 
-  answer.outcome = JKN_FF_OUTCOME_OK;
+  answer.outcome = FFC_OUTCOME_OK;
   return answer;
 }
 
-#ifdef JKN_FF_DEBUG 
+#ifdef FFC_DEBUG 
 
 #include <stdio.h>
-jkn_ff_internal jkn_ff_inline
-void jkn_ff_dump_parsed(jkn_ff_parsed const p) {
-  jkn_ff_debug("mantissa: %llu\n", (unsigned long long)p.mantissa);
-  jkn_ff_debug("exponent: %lld\n", (long long)p.exponent);
-  jkn_ff_debug("negative: %d\n", p.negative);
-  jkn_ff_debug("valid: %d\n", p.valid);
-  jkn_ff_debug("too_many_digits: %d\n", p.too_many_digits);
-  jkn_ff_debug("int_part_len: %zu\n", p.int_part_len);
-  jkn_ff_debug("fraction_part_len: %zu\n", p.fraction_part_len);
+ffc_internal ffc_inline
+void ffc_dump_parsed(ffc_parsed const p) {
+  ffc_debug("mantissa: %llu\n", (unsigned long long)p.mantissa);
+  ffc_debug("exponent: %lld\n", (long long)p.exponent);
+  ffc_debug("negative: %d\n", p.negative);
+  ffc_debug("valid: %d\n", p.valid);
+  ffc_debug("too_many_digits: %d\n", p.too_many_digits);
+  ffc_debug("int_part_len: %zu\n", p.int_part_len);
+  ffc_debug("fraction_part_len: %zu\n", p.fraction_part_len);
 }
 
 #endif
 
 /* section end: parse */
 
-#endif // JKN_FF_PARSE_H
+#endif // FFC_PARSE_H

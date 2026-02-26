@@ -32,17 +32,14 @@ for filename in ["LICENSE-MIT", "LICENSE-APACHE", "LICENSE-BOOST"]:
 
 # code
 for filename in [
-    "constexpr_feature_detect.h",
-    "float_common.h",
-    "fast_float.h",
-    "ascii_number.h",
-    "fast_table.h",
-    "decimal_to_binary.h",
-    "bigint.h",
-    "digit_comparison.h",
-    "parse_number.h",
+    "parse.h"
+    "bigint.h"
+    "common.h"
+    "api.h"
+    "digit_comparison.h"
+    "ffc.h"
 ]:
-    with open("include/fast_float/" + filename, encoding="utf8") as f:
+    with open("src/" + filename, encoding="utf8") as f:
         text = ""
         for line in f:
             if line.startswith('#include "'):
