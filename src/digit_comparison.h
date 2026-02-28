@@ -32,7 +32,7 @@ static const uint64_t ffc_powers_of_ten_uint64[] = {1UL,
 // effect on performance: in order to have a faster algorithm, we'd need
 // to slow down performance for faster algorithms, and this is still fast.
 ffc_inline ffc_internal int32_t
-scientific_exponent(uint64_t mantissa, int32_t exponent) {
+ffc_scientific_exponent(uint64_t mantissa, int32_t exponent) {
   while (mantissa >= 10000) {
     mantissa /= 10000;
     exponent += 4;
@@ -255,25 +255,25 @@ void ffc_skip_zeros(char **first, char *last, size_t char_width) {
   }
 
   uint64_t val;
-  while (last - *first >= cmp_len) {
+  while ((size_t)(last - *first) >= (cmp_len * char_width)) {
     memcpy(&val, *first, sizeof(uint64_t));
     if (val != cmp_mask) {
       break;
     }
-    *first += cmp_len;
+    *first += cmp_len * char_width;
   }
   while (*first != last) {
     if (!ffc_char_eq_zero(*first, char_width)) {
       break;
     }
-    *first += 1;
+    *first += char_width;
   }
 }
 
 // determine if any non-zero digits were truncated.
 // all characters must be valid digits.
 ffc_internal ffc_inline
-bool is_truncated(char const *first, char const *last, size_t char_width) {
+bool ffc_is_truncated(char const *first, char const *last, size_t char_width) {
   size_t cmp_len;
   size_t cmp_mask;
   switch (char_width) {
@@ -295,24 +295,24 @@ bool is_truncated(char const *first, char const *last, size_t char_width) {
   }
   // do 8-bit optimizations, can just compare to 8 literal 0s.
   uint64_t val;
-  while (last - first >= cmp_len) {
+  while ((size_t)(last - first) >= cmp_len) {
     memcpy(&val, first, sizeof(uint64_t));
     if (val != cmp_mask) {
       return true;
     }
-    first += cmp_len;
+    first += cmp_len * char_width;
   }
   while (first != last) {
     if (!ffc_char_eq_zero(first, char_width)) {
       return true;
     }
-    ++first;
+    first += char_width;
   }
   return false;
 }
 
 ffc_internal ffc_inline
-void ffc_parse_eight_digits(char **p, limb *value, size_t *counter, size_t *count) {
+void ffc_parse_eight_digits(char **p, ffc_bigint_limb *value, size_t *counter, size_t *count) {
   *value = *value * 100000000 + ffc_parse_eight_digits_unrolled(*p);
   *p += 8;
   *counter += 8;
@@ -320,15 +320,15 @@ void ffc_parse_eight_digits(char **p, limb *value, size_t *counter, size_t *coun
 }
 
 ffc_internal ffc_inline
-void ffc_parse_one_digit(char **p, limb *value, size_t *counter, size_t *count) {
-  *value = *value * 10 + (limb)(**p - '0');
+void ffc_parse_one_digit(char **p, ffc_bigint_limb *value, size_t *counter, size_t *count) {
+  *value = *value * 10 + (ffc_bigint_limb)(**p - '0');
   *p += 1;
   *counter += 1;
   *count += 1;
 }
 
 ffc_internal ffc_inline
-void ffc_add_native(ffc_bigint *big, limb power, limb value) {
+void ffc_add_native(ffc_bigint *big, ffc_bigint_limb power, ffc_bigint_limb value) {
   ffc_bigint_mul(big, power);
   ffc_bigint_add(big, value);
 }
@@ -350,7 +350,7 @@ void ffc_parse_mantissa(ffc_bigint *result, ffc_parsed num,
   // scalar value (9 or 19 digits) for each step.
   size_t counter = 0;
   *digits = 0;
-  limb value = 0;
+  ffc_bigint_limb value = 0;
 #ifdef FFC_64BIT_LIMB
   size_t step = 19;
 #else
@@ -372,17 +372,17 @@ void ffc_parse_mantissa(ffc_bigint *result, ffc_parsed num,
     }
     if (*digits == max_digits) {
       // add the temporary value, then check if we've truncated any digits
-      ffc_add_native(result, (limb)(ffc_powers_of_ten_uint64[counter]), value);
-      bool truncated = is_truncated(p, pend, 1);
+      ffc_add_native(result, (ffc_bigint_limb)(ffc_powers_of_ten_uint64[counter]), value);
+      bool truncated = ffc_is_truncated(p, pend, 1);
       if (num.fraction_part_start != NULL) {
-        truncated |= is_truncated(num.fraction_part_start, num.fraction_part_start + num.fraction_part_len, 1);
+        truncated |= ffc_is_truncated(num.fraction_part_start, num.fraction_part_start + num.fraction_part_len, 1);
       }
       if (truncated) {
         ffc_round_up_bigint(result, digits);
       }
       return;
     } else {
-      ffc_add_native(result, (limb)(ffc_powers_of_ten_uint64[counter]), value);
+      ffc_add_native(result, (ffc_bigint_limb)(ffc_powers_of_ten_uint64[counter]), value);
       counter = 0;
       value = 0;
     }
@@ -406,14 +406,14 @@ void ffc_parse_mantissa(ffc_bigint *result, ffc_parsed num,
       }
       if (*digits == max_digits) {
         // add the temporary value, then check if we've truncated any digits
-        ffc_add_native(result, (limb)(ffc_powers_of_ten_uint64[counter]), value);
-        bool truncated = is_truncated(p, pend, 1);
+        ffc_add_native(result, (ffc_bigint_limb)(ffc_powers_of_ten_uint64[counter]), value);
+        bool truncated = ffc_is_truncated(p, pend, 1);
         if (truncated) {
           ffc_round_up_bigint(result, digits);
         }
         return;
       } else {
-        ffc_add_native(result, (limb)(ffc_powers_of_ten_uint64[counter]), value);
+        ffc_add_native(result, (ffc_bigint_limb)(ffc_powers_of_ten_uint64[counter]), value);
         counter = 0;
         value = 0;
       }
@@ -421,7 +421,7 @@ void ffc_parse_mantissa(ffc_bigint *result, ffc_parsed num,
   }
 
   if (counter != 0) {
-    ffc_add_native(result, (limb)(ffc_powers_of_ten_uint64[counter]), value);
+    ffc_add_native(result, (ffc_bigint_limb)(ffc_powers_of_ten_uint64[counter]), value);
   }
 }
 
@@ -503,7 +503,7 @@ ffc_adjusted_mantissa ffc_digit_comp(ffc_parsed num, ffc_adjusted_mantissa am, f
   am.power2 -= FFC_INVALID_AM_BIAS;
 
   int32_t sci_exp =
-      scientific_exponent(num.mantissa, (int32_t)(num.exponent));
+      ffc_scientific_exponent(num.mantissa, (int32_t)(num.exponent));
   size_t max_digits = ffc_const(vk, MAX_DIGITS);
   size_t digits = 0;
   ffc_bigint bigmant = ffc_bigint_empty();

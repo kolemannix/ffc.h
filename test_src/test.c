@@ -160,17 +160,17 @@ void verify_ext(size_t len, char input[len], ffc_value exp_value, ffc_value_kind
 void verify_double_ext(size_t len, char input[len], double exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
   ffc_value expected;
   expected.d = exp_value;
-  return verify_ext(len, input, expected, FFC_VALUE_KIND_DOUBLE, exp_outcome, options);
+  verify_ext(len, input, expected, FFC_VALUE_KIND_DOUBLE, exp_outcome, options);
 }
 
 void verify_float_ext(size_t len, char input[len], float exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
   ffc_value expected;
   expected.f = exp_value;
-  return verify_ext(len, input, expected, FFC_VALUE_KIND_FLOAT, exp_outcome, options);
+  verify_ext(len, input, expected, FFC_VALUE_KIND_FLOAT, exp_outcome, options);
 }
 
 void verify_float(char *input, float exp_value) {
-  return verify_float_ext(strlen(input), input, exp_value, FFC_OUTCOME_OK, ffc_parse_options_default());
+  verify_float_ext(strlen(input), input, exp_value, FFC_OUTCOME_OK, ffc_parse_options_default());
 }
 
 ffc_result run_double_options(char *input, double *out, ffc_parse_options options) {
@@ -557,7 +557,7 @@ void double_parse_negative_zero(void) {
   assert(ffc_get_double_bits(f) == 0x8000000000000000ULL);
 }
 
-void float_special() {
+void float_special(void) {
   verify_float(append_zeros("1.1754941406275178592461758986628081843312458647327962400313859427181746759860647699724722770042717456817626953125", 655), 0x1.2ced3p+0f);
   verify_float(append_zeros("1.1754941406275178592461758986628081843312458647327962400313859427181746759860647699724722770042717456817626953125", 656), 0x1.2ced3p+0f);
   verify_float(

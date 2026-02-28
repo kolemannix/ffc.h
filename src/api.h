@@ -21,7 +21,7 @@ typedef struct ffc_result {
 typedef uint64_t ffc_format;
 enum ffc_format_bits {
   FFC_FORMAT_FLAG_SCIENTIFIC         = 1ULL << 0,
-  FFC_FORMAT_FLAG_FIXED              = 1ULL << 2, // Fixed the gap here
+  FFC_FORMAT_FLAG_FIXED              = 1ULL << 2, // Gap is present in fast_float original
   FFC_FORMAT_FLAG_HEX                = 1ULL << 3,
   FFC_FORMAT_FLAG_NO_INFNAN          = 1ULL << 4,
   FFC_FORMAT_FLAG_BASIC_JSON         = 1ULL << 5,
@@ -40,10 +40,7 @@ enum ffc_format_bits {
                                  FFC_PRESET_GENERAL,
 
   FFC_PRESET_FORTRAN = FFC_FORMAT_FLAG_BASIC_FORTRAN | 
-                          FFC_PRESET_GENERAL,
-
-  /* Force the enum to a 64-bit representation in debuggers */
-  _FFC_FORMAT_FORCE_64 = 0xFFFFFFFFFFFFFFFFULL
+                          FFC_PRESET_GENERAL
 };
 
 typedef struct ffc_parse_options {
@@ -51,11 +48,9 @@ typedef struct ffc_parse_options {
   ffc_format format;
   /** The character used as decimal point; period will be used if decimal_point == '\0' */
   char decimal_point;
-  /** The base used only for integers */
-  int base;
 } ffc_parse_options;
 
-ffc_parse_options ffc_parse_options_default();
+ffc_parse_options ffc_parse_options_default(void);
 
 typedef enum ffc_parse_outcome {
   FFC_PARSE_OUTCOME_NO_ERROR = 0,
@@ -76,7 +71,16 @@ typedef enum ffc_parse_outcome {
   FFC_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART = 7,
 } ffc_parse_outcome;
 
+/*
+ * A simplified API for simple use cases; the result will be 0.0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
+double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome);
+ffc_result ffc_parse_double(size_t len, const char *s, double *out);
 /**
+ * Implements the fast_float algorithm from https://github.com/fastfloat/fast_float
+ * See original for more details
+ *
  * This function parses the character sequence [first,last) for a number. It
  * parses floating-point numbers expecting a locale-independent format equivalent
  * to what is used by std::strtod in the default ("C") locale. The resulting
@@ -101,14 +105,23 @@ typedef enum ffc_parse_outcome {
  * `scientific`.
  */
 ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
-ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
 ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
+
+/*
+ * A simplified API for simple use cases; the result will be 0.0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
+float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome);
+ffc_result ffc_parse_float(size_t len, const char *s, float *out);
+ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
 ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
 
-// nocommit implement the integer overloads
-// ffc_result ffc_parse_long(size_t len, const char input[len], long* out);
-// ffc_result ffc_parse_int(size_t len, const char input[len], int* out);
-ffc_result ffc_from_chars_long(const char *start, const char *end, long* out);
-ffc_result ffc_from_chars_int(const char *start,  const char *end, int* out);
+ffc_result ffc_parse_i64(size_t len, const char input[len], int base, int64_t  *out);
+ffc_result ffc_parse_u64(size_t len, const char input[len], int base, uint64_t *out);
+ffc_result ffc_parse_i32(size_t len, const char input[len], int base, int32_t  *out);
+ffc_result ffc_parse_u32(size_t len, const char input[len], int base, uint32_t *out);
+// nocommit implement more integer overloads
+// ffc_result ffc_from_chars_long(const char *start, const char *end, long* out);
+// ffc_result ffc_from_chars_int(const char *start,  const char *end, int* out);
 
 #endif // FFC_API

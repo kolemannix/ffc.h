@@ -4,29 +4,29 @@
 #include "common.h"
 #include <math.h>
 
-#include <stdio.h>
-
 /* section: read digits */
 
-ffc_inline uint64_t byteswap(uint64_t val) {
+ffc_internal ffc_inline
+uint64_t ffc_byteswap(uint64_t val) {
   return (val & 0xFF00000000000000) >> 56 | (val & 0x00FF000000000000) >> 40 |
          (val & 0x0000FF0000000000) >> 24 | (val & 0x000000FF00000000) >> 8  |
          (val & 0x00000000FF000000) <<  8 | (val & 0x0000000000FF0000) << 24 |
          (val & 0x000000000000FF00) << 40 | (val & 0x00000000000000FF) << 56;
 }
 
-ffc_inline uint32_t byteswap_32(uint32_t val) {
+ffc_internal ffc_inline
+uint32_t ffc_byteswap_32(uint32_t val) {
   return (val >> 24) | ((val >> 8) & 0x0000FF00u) | ((val << 8) & 0x00FF0000u) |
          (val << 24);
 }
 
-ffc_inline uint64_t
-ffc_read8_to_u64(char const *chars) {
+ffc_inline ffc_internal
+uint64_t ffc_read8_to_u64(char const *chars) {
   uint64_t val;
   memcpy(&val, chars, sizeof(uint64_t));
 #if FFC_IS_BIG_ENDIAN == 1
   // Need to read as-if the number was in little-endian order.
-  val = byteswap(val);
+  val = ffc_byteswap(val);
 #endif
   return val;
 }
@@ -37,14 +37,15 @@ ffc_read4_to_u32(char const *chars) {
   uint32_t val;
   memcpy(&val, chars, sizeof(uint32_t));
 #if FFC_IS_BIG_ENDIAN == 1
-  val = byteswap_32(val);
+  val = ffc_byteswap_32(val);
 #endif
   return val;
 }
 
 #ifdef FFC_SSE2
 
-ffc_inline uint64_t ffc_simd_read8_to_u64_simdreg(__m128i const data) {
+ffc_internal ffc_inline
+uint64_t ffc_simd_read8_to_u64_simdreg(__m128i const data) {
   FFC_SIMD_DISABLE_WARNINGS
   __m128i const packed = _mm_packus_epi16(data, data);
 #ifdef FFC_64BIT
@@ -52,13 +53,14 @@ ffc_inline uint64_t ffc_simd_read8_to_u64_simdreg(__m128i const data) {
 #else
   uint64_t value;
   // Visual Studio + older versions of GCC don't support _mm_storeu_si64
-  _mm_storel_epi64(&value, packed);
+  _mm_storel_epi64((__m128i*)&value, packed);
   return value;
 #endif
   FFC_SIMD_RESTORE_WARNINGS
 }
 
-ffc_inline uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
+ffc_internal ffc_inline
+uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
   FFC_SIMD_DISABLE_WARNINGS
   return ffc_simd_read8_to_u64_simdreg(
       _mm_loadu_si128((const __m128i*)chars));
@@ -67,14 +69,16 @@ ffc_inline uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
 
 #elif defined(FFC_NEON)
 
-ffc_inline uint64_t ffc_simd_read8_to_u64_simdreg(uint16x8_t const data) {
+ffc_internal ffc_inline
+uint64_t ffc_simd_read8_to_u64_simdreg(uint16x8_t const data) {
   FFC_SIMD_DISABLE_WARNINGS
   uint8x8_t utf8_packed = vmovn_u16(data);
   return vget_lane_u64(vreinterpret_u64_u8(utf8_packed), 0);
   FFC_SIMD_RESTORE_WARNINGS
 }
 
-ffc_inline uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
+ffc_internal ffc_inline
+uint64_t ffc_simd_read8_to_u64(uint16_t const *chars) {
   FFC_SIMD_DISABLE_WARNINGS
   return ffc_simd_read8_to_u64_simdreg(vld1q_u16(chars));
   FFC_SIMD_RESTORE_WARNINGS
@@ -102,13 +106,13 @@ uint32_t ffc_parse_eight_digits_unrolled(char const *chars) {
 
 // credit @aqrit
 ffc_internal ffc_inline bool
-is_made_of_eight_digits_fast(uint64_t val) {
+ffc_is_made_of_eight_digits_fast(uint64_t val) {
   return !((((val + 0x4646464646464646) | (val - 0x3030303030303030)) &
             0x8080808080808080));
 }
 
 ffc_internal ffc_inline bool
-is_made_of_four_digits_fast(uint32_t val) {
+ffc_is_made_of_four_digits_fast(uint32_t val) {
   return !((((val + 0x46464646) | (val - 0x30303030)) & 0x80808080));
 }
 
@@ -127,7 +131,6 @@ uint32_t ffc_parse_four_digits_unrolled(uint32_t val) {
 ffc_internal ffc_inline
 bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_t* i) {
 #ifdef FFC_SSE2
-  printf("sse2\n");
   FFC_SIMD_DISABLE_WARNINGS
   __m128i const data =
       _mm_loadu_si128((__m128i const *)chars);
@@ -172,7 +175,7 @@ ffc_loop_parse_if_eight_digits(char const **p, char const *const pend,
                            uint64_t* i) {
   // optimizes better than parse_if_eight_digits_unrolled() for char.
   while ((pend - *p >= 8) &&
-         is_made_of_eight_digits_fast(ffc_read8_to_u64(*p))) {
+         ffc_is_made_of_eight_digits_fast(ffc_read8_to_u64(*p))) {
     *i = (*i * 100000000) +
         ffc_parse_eight_digits_unrolled_swar(ffc_read8_to_u64(*p)); 
         // in rare cases, this will overflow, but that's ok
@@ -184,7 +187,7 @@ ffc_loop_parse_if_eight_digits(char const **p, char const *const pend,
 
 /* section: parse */
 
-ffc_inline ffc_parse_options ffc_parse_options_default() {
+ffc_parse_options ffc_parse_options_default(void) {
   ffc_parse_options options;
   options.format = FFC_PRESET_GENERAL;
   options.decimal_point = '.';
@@ -450,7 +453,7 @@ ffc_result ffc_parse_infnan(
     ++first;
   }
   if (last - first >= 3) {
-    if (fastfloat_strncasecmp3(first, "nan", 1)) {
+    if (ffc_strncasecmp3(first, "nan", 1)) {
       answer.ptr = (first += 3);
 
       // The macro casts the literal AFTER applying the negative sign. This is ok:
@@ -472,9 +475,9 @@ ffc_result ffc_parse_infnan(
       }
       return answer;
     }
-    if (fastfloat_strncasecmp3(first, "infinity", 1)) {
+    if (ffc_strncasecmp3(first, "infinity", 1)) {
       if ((last - first >= 8) &&
-          fastfloat_strncasecmp5(first + 3, (char*)&"infinity"[3], 1)) {
+          ffc_strncasecmp5(first + 3, (char*)&"infinity"[3], 1)) {
         answer.ptr = first + 8;
       } else {
         answer.ptr = first + 3;
@@ -493,15 +496,27 @@ ffc_result ffc_parse_int_string(
     char const *pend,
     ffc_int_value *value,
     ffc_int_kind ik,
-    ffc_parse_options options
+    ffc_parse_options options,
+    int const base
   ) {
+  ffc_debug("input '%.*s'... ", (int)(pend - p), p);
   ffc_format const fmt = options.format;
-  int const base = options.base;
+
+  if ((uint64_t)(fmt & FFC_FORMAT_FLAG_SKIP_WHITE_SPACE)) {
+    while ((p != pend) && ffc_is_space(*p)) {
+      p++;
+    }
+  }
+
+  if (p == pend || base < 2 || base > 36) {
+    return (ffc_result){ .ptr = (char*)p, .outcome = FFC_OUTCOME_INVALID_INPUT };
+  }
 
   ffc_result answer;
   char const *const first = p;
 
   bool const negative = (*p == (char)('-'));
+
   if (!ffc_int_kind_is_signed(ik) && negative) {
     answer.outcome = FFC_OUTCOME_INVALID_INPUT;
     answer.ptr = (char*)first;
@@ -553,6 +568,7 @@ ffc_result ffc_parse_int_string(
 
   // check u64 overflow
   size_t max_digits = ffc_max_digits_u64(base);
+  ffc_debug("digit_count %d, max_digits: %d\n", digit_count, max_digits);
   if (digit_count > max_digits) {
     answer.outcome = FFC_OUTCOME_OUT_OF_RANGE;
     return answer;
@@ -564,6 +580,10 @@ ffc_result ffc_parse_int_string(
     return answer;
   }
 
+  ffc_debug("i is %lld, ik is %s\n", i, (ik == FFC_INT_KIND_U64 ? "u64" :
+                                         ik == FFC_INT_KIND_S64 ? "s64" :
+                                         ik == FFC_INT_KIND_U32 ? "u32" :
+                                         ik == FFC_INT_KIND_S32 ? "s32" : "?"));
   // check other types overflow
   if (ik != FFC_INT_KIND_U64) {
     // Allow 1 greater magnitude when negative
@@ -602,6 +622,7 @@ ffc_result ffc_parse_int_string(
 #include <stdio.h>
 ffc_internal ffc_inline
 void ffc_dump_parsed(ffc_parsed const p) {
+  (void)p;
   ffc_debug("mantissa: %llu\n", (unsigned long long)p.mantissa);
   ffc_debug("exponent: %lld\n", (long long)p.exponent);
   ffc_debug("negative: %d\n", p.negative);

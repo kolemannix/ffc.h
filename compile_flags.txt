@@ -1,7 +1,8 @@
 -xc
 -std=c11
 -Wall
--Wconversion
+-Wextra
+-Wpedantic
 -DFFC_IMPL
 -Isrc
 -Itest_src

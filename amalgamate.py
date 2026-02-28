@@ -1,4 +1,18 @@
-# text parts
+import argparse
+import re
+
+# ── CLI ──────────────────────────────────────────────────────────────
+parser = argparse.ArgumentParser(description="Amalgamate fast_float.")
+parser.add_argument(
+    "--license",
+    default="TRIPLE",
+    choices=["DUAL", "TRIPLE", "MIT", "APACHE", "BOOST"],
+    help="choose license",
+)
+parser.add_argument("--output", default="", help="output file (stdout if none)")
+args = parser.parse_args()
+
+# ── text parts ───────────────────────────────────────────────────────
 processed_files = {}
 
 # authors
@@ -18,7 +32,6 @@ for filename in ["LICENSE-MIT", "LICENSE-APACHE", "LICENSE-BOOST"]:
     with open(filename, encoding="utf8") as f:
         lines = f.readlines()
 
-    # Retrieve subset required for inclusion in source
     if filename == "LICENSE-APACHE":
         lines = ["   Copyright 2021 The fast_float authors\n", *lines[179:-1]]
 
@@ -29,37 +42,6 @@ for filename in ["LICENSE-MIT", "LICENSE-APACHE", "LICENSE-BOOST"]:
             line = "    " + line
         text += "//" + line + "\n"
     processed_files[filename] = text
-
-# code
-for filename in [
-    "parse.h"
-    "bigint.h"
-    "common.h"
-    "api.h"
-    "digit_comparison.h"
-    "ffc.h"
-]:
-    with open("src/" + filename, encoding="utf8") as f:
-        text = ""
-        for line in f:
-            if line.startswith('#include "'):
-                continue
-            text += line
-        processed_files[filename] = "\n" + text
-
-# command line
-import argparse
-
-parser = argparse.ArgumentParser(description="Amalgamate fast_float.")
-parser.add_argument(
-    "--license",
-    default="TRIPLE",
-    choices=["DUAL", "TRIPLE", "MIT", "APACHE", "BOOST"],
-    help="choose license",
-)
-parser.add_argument("--output", default="", help="output file (stdout if none")
-
-args = parser.parse_args()
 
 
 def license_content(license_arg):
@@ -95,20 +77,67 @@ def license_content(license_arg):
     return result
 
 
+# ── source code ──────────────────────────────────────────────────────
+
+# Read every source file once (raw, no processing)
+source_files = {}
+for filename in [
+    "api.h",
+    "common.h",
+    "bigint.h",
+    "parse.h",
+    "digit_comparison.h",
+    "ffc.h",
+]:
+    with open("src/" + filename, encoding="utf8") as f:
+        source_files[filename] = f.read()
+
+
+INCLUDE_RE = re.compile(r'^#include "([^"]+)"\s*$')
+
+
+def expand_source(filename, already_included=None):
+    """Recursively expand a source file, replacing #include "x.h" with
+    the contents of x.h (with its own #include "..." lines expanded too).
+
+    Each file is expanded at most once; subsequent #include of the same
+    file are silently dropped (the include-guard macros still exist, but
+    this avoids emitting empty guarded blocks).
+    """
+    if already_included is None:
+        already_included = set()
+
+    if filename in already_included:
+        return ""
+    already_included.add(filename)
+
+    lines = source_files[filename].splitlines(keepends=True)
+    parts = []
+    for line in lines:
+        m = INCLUDE_RE.match(line)
+        if m:
+            included = m.group(1)
+            if included in source_files:
+                # Inline the included file (recursively)
+                parts.append(expand_source(included, already_included))
+            else:
+                # System or unknown include — keep as-is
+                parts.append(line)
+        else:
+            parts.append(line)
+    return "".join(parts)
+
+
+amalgamated_code = expand_source("ffc.h")
+
+# ── assemble ─────────────────────────────────────────────────────────
 text = "".join(
     [
         processed_files["AUTHORS"],
         processed_files["CONTRIBUTORS"],
         *license_content(args.license),
-        processed_files["constexpr_feature_detect.h"],
-        processed_files["float_common.h"],
-        processed_files["fast_float.h"],
-        processed_files["ascii_number.h"],
-        processed_files["fast_table.h"],
-        processed_files["decimal_to_binary.h"],
-        processed_files["bigint.h"],
-        processed_files["digit_comparison.h"],
-        processed_files["parse_number.h"],
+        "\n",
+        amalgamated_code,
     ]
 )
 

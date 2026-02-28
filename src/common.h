@@ -3,8 +3,6 @@
 
 #include "api.h"
 #include <float.h> // for NAN, FLT_MIN
-#include <stddef.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h> // for memcpy
 #include <stdbool.h>
@@ -278,10 +276,27 @@ ffc_u128 ffc_mul_u64(uint64_t a, uint64_t b) {
   w1 += a0 * b1;
 
   ffc_u128 output;
-  output.lo = a * b;
-  output.hi = (a1 * b1) + w2 + (w1 >> 32);
+  output.low = a * b;
+  output.high = (a1 * b1) + w2 + (w1 >> 32);
   return output;
 #endif
+}
+
+// slow emulation routine for 32-bit
+ffc_internal ffc_inline uint64_t ffc_emulu(uint32_t x, uint32_t y) {
+  return x * (uint64_t)y;
+}
+
+ffc_internal ffc_inline
+uint64_t ffc_umul128_generic(uint64_t ab, uint64_t cd, uint64_t *hi) {
+  uint64_t ad = ffc_emulu((uint32_t)(ab >> 32), (uint32_t)cd);
+  uint64_t bd = ffc_emulu((uint32_t)ab, (uint32_t)cd);
+  uint64_t adbc = ad + ffc_emulu((uint32_t)ab, (uint32_t)(cd >> 32));
+  uint64_t adbc_carry = (uint64_t)(adbc < ad);
+  uint64_t lo = bd + (adbc << 32);
+  *hi = ffc_emulu((uint32_t)(ab >> 32), (uint32_t)(cd >> 32)) + (adbc >> 32) +
+        (adbc_carry << 32) + (uint64_t)(lo < bd);
+  return lo;
 }
 
 // compute 64-bit a*b
@@ -301,7 +316,7 @@ ffc_u128 ffc_full_multiplication(uint64_t a, uint64_t b) {
   answer.low = (uint64_t)(r);
   answer.high = (uint64_t)(r >> 64);
 #else
-  answer.low = umul128_generic(a, b, &answer.high);
+  answer.low = ffc_umul128_generic(a, b, &answer.high);
 #endif
   return answer;
 }
@@ -397,13 +412,13 @@ uint8_t ffc_char_to_digit(char c) {
   return FFC_CHAR_TO_DIGIT_LUT[(uint8_t)c];
 }
 
-// Indexed by a 'base'
+// Indexed by a 'base' but offset by 2, first entry is base 2, 64 digits, checks out right?
 ffc_internal size_t FFC_MAXDIGITS_OF_BASE_U64[] = {
     64, 41, 32, 28, 25, 23, 22, 21, 20, 19, 18, 18, 17, 17, 16, 16, 16, 16,
     15, 15, 15, 15, 14, 14, 14, 14, 14, 14, 14, 13, 13, 13, 13, 13, 13};
 
 ffc_internal ffc_inline size_t ffc_max_digits_u64(int base) {
-  return FFC_MAXDIGITS_OF_BASE_U64[base];
+  return FFC_MAXDIGITS_OF_BASE_U64[base - 2];
 }
 
 ffc_internal ffc_inline bool ffc_is_integer(char c) {
@@ -427,11 +442,11 @@ ffc_internal uint64_t FFC_MIN_SAFE_OF_BASE_U64[] = {
       3379220508056640625,     4738381338321616896};
 
 ffc_internal ffc_inline uint64_t ffc_min_safe_u64_of_base(int base) {
-  return FFC_MIN_SAFE_OF_BASE_U64[base];
+  return FFC_MIN_SAFE_OF_BASE_U64[base - 2];
 }
 
 ffc_internal ffc_inline
-bool fastfloat_strncasecmp3(char const *actual_mixedcase, char const *expected_lowercase, size_t char_width) {
+bool ffc_strncasecmp3(char const *actual_mixedcase, char const *expected_lowercase, size_t char_width) {
   uint64_t mask = 0;
   if (char_width == 1) { mask = 0x2020202020202020; }
   else if (char_width == 2) { mask = 0x0020002000200020; }
@@ -457,12 +472,10 @@ bool fastfloat_strncasecmp3(char const *actual_mixedcase, char const *expected_l
   } else {
     return false;
   }
-
-  return true;
 }
 
 ffc_internal ffc_inline
-bool fastfloat_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, size_t char_width) {
+bool ffc_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, size_t char_width) {
   uint64_t mask = 0;
   uint64_t val1 = 0;
   uint64_t val2 = 0;
@@ -497,11 +510,8 @@ bool fastfloat_strncasecmp5(char *actual_mixedcase, char const *expected_lowerca
       return false;
     }
     return (actual_mixedcase[4] | 32) == (expected_lowercase[4]);
-  } else {
-    return false;
   }
-
-  return true;
+  return false;
 }
 
 /**
@@ -511,7 +521,7 @@ bool fastfloat_strncasecmp5(char *actual_mixedcase, char const *expected_lowerca
  */
 
 ffc_internal ffc_inline
-bool ffc_rounds_to_nearest() {
+bool ffc_rounds_to_nearest(void) {
   // https://lemire.me/blog/2020/06/26/gcc-not-nearest/
 #if (FLT_EVAL_METHOD != 1) && (FLT_EVAL_METHOD != 0)
   return false;

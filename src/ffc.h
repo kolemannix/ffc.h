@@ -1,13 +1,7 @@
 /* ffc.h
    single-header decimal float parser using eisel-lemire
-   Usage:
-       #define FFC_IMPL
-       #include "ffc.h"
-  
-       ffc_parse_double(first, last, &out)
-       ffc_parse_float(first, last, &out)
-
-       nocommit licenses, contributors, and amalgamation
+   This is a direct port by Koleman Nix of the fast_float library
+   authored by Daniel Lemire
 */
 
 #ifndef FFC_H
@@ -263,7 +257,7 @@ bool ffc_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_neg
           };
         }
         if (is_negative) {
-          ffc_set_value(value, is_double, -ffc_read_value(value, is_double));
+          ffc_set_value(value, value_kind, -ffc_read_value(value, value_kind));
         }
         return true;
       }
@@ -272,11 +266,11 @@ bool ffc_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_neg
       // Next is a modified Clinger's fast path, inspired by Jakub Jelínek's
       // proposal
       if (exponent >= 0 &&
-          mantissa <= ffc_const(is_double, MAX_MANTISSA)[exponent]) {
+          mantissa <= ffc_const(value_kind, MAX_MANTISSA)[exponent]) {
 #if defined(__clang__) || defined(FFC_32BIT)
         // Clang may map 0 to -0.0 when fegetround() == FE_DOWNWARD
         if (mantissa == 0) {
-          ffc_set_value(value, is_double, is_negative ? -0. : 0.);
+          ffc_set_value(value, value_kind, is_negative ? -0. : 0.);
           return true;
         }
 #endif
@@ -327,7 +321,7 @@ ffc_result ffc_from_chars_advanced(ffc_parsed const pns, ffc_value* value, ffc_v
   ffc_debug("am post mantissa: %llu\n", am.mantissa);
   ffc_debug("am post power2:   %d\n", am.power2);
   ffc_am_to_float(pns.negative, am, value, vk);
-  ffc_debug("value: %f\n", *value);
+
   // Test for over/underflow.
   if ((pns.mantissa != 0 && am.mantissa == 0 && am.power2 == 0) ||
       am.power2 == ffc_const(vk, INFINITE_POWER)) {
@@ -382,11 +376,22 @@ ffc_result ffc_from_chars_double_options(const char *start, const char *end, dou
   ffc_result result = ffc_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_DOUBLE);
   *out = out_value.d;
   return result;
-
 }
 ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_double_options(first, last, out, options);
+}
+ffc_result ffc_parse_double(size_t len, const char *s, double *out) {
+  char *pend = (char*)(s + len);
+  return ffc_from_chars_double(s, pend, out);
+}
+double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome) {
+  double out = 0.0;
+  ffc_result result = ffc_parse_double(len, s, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
 }
 
 ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
@@ -398,6 +403,47 @@ ffc_result ffc_from_chars_float_options(const char *start,  const char *end, flo
 ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_float_options(first, last, out, options);
+}
+ffc_result ffc_parse_float(size_t len, const char *s, float *out) {
+  char *pend = (char*)(s + len);
+  return ffc_from_chars_float(s, pend, out);
+}
+float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome) {
+  float out = 0.0;
+  ffc_result result = ffc_parse_float(len, s, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
+}
+
+ffc_result ffc_parse_i64(size_t len, const char input[len], int base, int64_t  *out) {
+  char *pend = (char*)(input + len);
+  ffc_int_value value_out;
+  ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S64, ffc_parse_options_default(), base);
+  *out = value_out.s64;
+  return result;
+}
+ffc_result ffc_parse_u64(size_t len, const char input[len], int base, uint64_t *out) {
+  char *pend = (char*)(input + len);
+  ffc_int_value value_out;
+  ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U64, ffc_parse_options_default(), base);
+  *out = value_out.u64;
+  return result;
+}
+ffc_result ffc_parse_i32(size_t len, const char input[len], int base, int32_t  *out) {
+  char *pend = (char*)(input + len);
+  ffc_int_value value_out;
+  ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S32, ffc_parse_options_default(), base);
+  *out = value_out.s32;
+  return result;
+}
+ffc_result ffc_parse_u32(size_t len, const char input[len], int base, uint32_t *out) {
+  char *pend = (char*)(input + len);
+  ffc_int_value value_out;
+  ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U32, ffc_parse_options_default(), base);
+  *out = value_out.u32;
+  return result;
 }
 
 #undef FFC_DOUBLE_SMALLEST_POWER_OF_10        
@@ -430,7 +476,7 @@ ffc_result ffc_from_chars_float(char const* first, char const* last, float* out)
 #undef FFC_FLOAT_HIDDEN_BIT_MASK              
 #undef FFC_FLOAT_MAX_DIGITS                   
 
-#define FFC_POWERS_OF_5_NUMBER_OF_ENTRIES (2 * (FFC_DOUBLE_LARGEST_POWER_OF_10 - FFC_DOUBLE_SMALLEST_POWER_OF_10 + 1))
+#undef FFC_POWERS_OF_5_NUMBER_OF_ENTRIES
 
 #endif /* FFC_IMPL */
 
