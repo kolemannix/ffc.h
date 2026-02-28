@@ -1,4 +1,5 @@
-// Opus 4.6 generated. Status: Unreviewed
+// Opus 4.6 generated.
+// Status: Summarily reviewed and adjusted by knix
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -10,7 +11,7 @@
 
 static int FAILS = 0;
 
-/* ── helpers ─────────────────────────────────────────────────────── */
+/* -- helpers ------------------------------------------------------- */
 
 static void verify_i32(const char *input, int32_t expected, int base) {
   size_t len = strlen(input);
@@ -127,7 +128,7 @@ static void verify_ptr_i32(const char *input, int base, const char *expected_tai
   }
 }
 
-/* ── test functions ──────────────────────────────────────────────── */
+/* -- test functions ------------------------------------------------ */
 
 static void test_i32_basic(void) {
   verify_i32("0",              0, 10);
@@ -166,7 +167,7 @@ static void test_u64_basic(void) {
   verify_u64("18446744073709551615", UINT64_MAX, 10);
 }
 
-/* ── invalid argument ────────────────────────────────────────────── */
+/* -- invalid argument ---------------------------------------------- */
 
 static void test_i32_invalid(void) {
   const char *cases[] = { "text", "text with 1002", "+50", " 50" };
@@ -192,7 +193,7 @@ static void test_u64_invalid(void) {
     expect_outcome_u64(cases[i], 10, FFC_OUTCOME_INVALID_INPUT);
 }
 
-/* ── out of range (decimal) ──────────────────────────────────────── */
+/* -- out of range (decimal) ---------------------------------------- */
 
 static void test_i32_out_of_range(void) {
   const char *cases[] = {
@@ -234,7 +235,7 @@ static void test_u64_out_of_range(void) {
     expect_outcome_u64(cases[i], 10, FFC_OUTCOME_OUT_OF_RANGE);
 }
 
-/* ── pointer (tail) tests ────────────────────────────────────────── */
+/* -- pointer (tail) tests ------------------------------------------ */
 
 static void test_pointer(void) {
   /* numbers only → empty tail */
@@ -277,7 +278,7 @@ static void test_pointer(void) {
   }
 }
 
-/* ── base 2 ──────────────────────────────────────────────────────── */
+/* -- base 2 -------------------------------------------------------- */
 
 static void test_i32_base2(void) {
   verify_i32("0",   0, 2);
@@ -304,7 +305,7 @@ static void test_u32_base2(void) {
   expect_outcome_u32("-2", 2, FFC_OUTCOME_INVALID_INPUT);
 }
 
-/* ── octal ───────────────────────────────────────────────────────── */
+/* -- octal --------------------------------------------------------- */
 
 static void test_octal(void) {
   verify_i32("0",    0, 8);
@@ -314,7 +315,7 @@ static void test_octal(void) {
   verify_i32("0011", 9, 8);
 }
 
-/* ── hex ─────────────────────────────────────────────────────────── */
+/* -- hex ----------------------------------------------------------- */
 
 static void test_hex(void) {
   verify_i32("0",     0, 16);
@@ -329,7 +330,7 @@ static void test_hex(void) {
   verify_i32("10X11", 16, 16);
 }
 
-/* ── invalid base ────────────────────────────────────────────────── */
+/* -- invalid base -------------------------------------------------- */
 
 static void test_invalid_base(void) {
   const char *inputs[] = { "0", "1", "-1", "F", "10Z" };
@@ -340,7 +341,7 @@ static void test_invalid_base(void) {
   }
 }
 
-/* ── i64 out-of-range per base (from C++ test) ───────────────────
+/* -- i64 out-of-range per base (from C++ test) -------------------
    Each pair is (positive overflow, negative overflow) for bases 2..36 */
 
 static void test_i64_out_of_range_bases(void) {
@@ -423,7 +424,7 @@ static void test_i64_out_of_range_bases(void) {
   }
 }
 
-/* ── u64 out-of-range per base ───────────────────────────────────── */
+/* -- u64 out-of-range per base ------------------------------------- */
 
 static void test_u64_out_of_range_bases(void) {
   const char *cases[] = {
@@ -470,7 +471,7 @@ static void test_u64_out_of_range_bases(void) {
   }
 }
 
-/* ── i64 just-within-range per base ──────────────────────────────── */
+/* -- i64 just-within-range per base -------------------------------- */
 
 static void test_i64_within_range_bases(void) {
   const char *cases[] = {
@@ -552,7 +553,7 @@ static void test_i64_within_range_bases(void) {
   }
 }
 
-/* ── u64 just-within-range per base ──────────────────────────────── */
+/* -- u64 just-within-range per base -------------------------------- */
 
 static void test_u64_within_range_bases(void) {
   const char *cases[] = {
@@ -599,7 +600,7 @@ static void test_u64_within_range_bases(void) {
   }
 }
 
-/* ── i32 out-of-range per base (32-bit boundaries) ───────────────
+/* -- i32 out-of-range per base (32-bit boundaries) ---------------
    INT32_MAX =  2147483647
    INT32_MIN = -2147483648
    Selected bases: 2, 8, 10, 16 */
@@ -640,7 +641,7 @@ static void test_i32_within_range_bases(void) {
   expect_outcome_i32("-80000000", 16, FFC_OUTCOME_OK);
 }
 
-/* ── u32 out-of-range per base ───────────────────────────────────── */
+/* -- u32 out-of-range per base ------------------------------------- */
 
 static void test_u32_out_of_range_bases(void) {
   /* base 2: UINT32_MAX = 11111111111111111111111111111111 (32 ones) */
@@ -663,7 +664,7 @@ static void test_u32_within_range_bases(void) {
   expect_outcome_u32("FFFFFFFF", 16, FFC_OUTCOME_OK);
 }
 
-/* ── leading zeros ───────────────────────────────────────────────── */
+/* -- leading zeros ------------------------------------------------- */
 
 static void test_leading_zeros(void) {
   /* All of these should parse to 1015 in various bases (from C++ test).
@@ -680,7 +681,7 @@ static void test_leading_zeros(void) {
   }
 }
 
-/* ── issue 235: single-char buffer ───────────────────────────────── */
+/* -- issue 235: single-char buffer --------------------------------- */
 
 static void test_issue_235(void) {
   char s = '0';
@@ -692,7 +693,7 @@ static void test_issue_235(void) {
   }
 }
 
-/* ── main ────────────────────────────────────────────────────────── */
+/* -- main ---------------------------------------------------------- */
 
 int main(void) {
   test_i32_basic();
