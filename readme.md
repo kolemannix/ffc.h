@@ -29,6 +29,35 @@ int main(void) {
 For use within a larger parser, where you don't expect to reach the end of input, use
 the non-simple variants as the `ffc_result` includes the stopping point, just like in fast_float
 
+## API
+
+### Float Parsing
+
+- `double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome)`  
+  Parses a double from a string of given length. Returns the parsed value, outcome indicates success/failure.
+
+- `ffc_result ffc_parse_double(size_t len, const char *s, double *out)`  
+  Parses a double from a string, storing result in `out`. Returns `ffc_result` with outcome and end pointer.
+
+- `float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome)`  
+  Parses a float from a string of given length. Returns the parsed value.
+
+- `ffc_result ffc_parse_float(size_t len, const char *s, float *out)`  
+  Parses a float from a string, storing result in `out`.
+
+### Integer Parsing
+
+- `ffc_result ffc_parse_i64(size_t len, const char *s, int base, int64_t *out)`  
+  Parses a signed 64-bit integer from string with given base.
+
+- `ffc_result ffc_parse_u64(size_t len, const char *s, int base, uint64_t *out)`  
+  Parses an unsigned 64-bit integer from string with given base.
+
+### Types
+
+- `ffc_outcome`: Enum indicating parse result (OK, OUT_OF_RANGE, INVALID_INPUT)
+- `ffc_result`: Struct with `ptr` (end of parsed string) and `outcome`
+
 ## Building
 
 ### With Make
