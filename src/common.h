@@ -135,7 +135,7 @@ ffc_internal ffc_inline size_t ffc_get_value_size(ffc_value_kind vk) {
        (defined(__riscv) && __riscv_xlen == 32))
 #define FFC_32BIT 1
 #else
-  // Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
+// Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
 // We can never tell the register width, but the SIZE_MAX is a good
 // approximation. UINTPTR_MAX and INTPTR_MAX are optional, so avoid them for max
 // portability.

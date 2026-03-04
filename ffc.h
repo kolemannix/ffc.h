@@ -191,8 +191,8 @@ typedef enum ffc_parse_outcome {
  * A simplified API for simple use cases; the result will be 0.0 on error, not uninitialized.
  * If outcome is null, it will not be written to
  */
-double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome);
-ffc_result ffc_parse_double(size_t len, const char *s, double *out);
+double ffc_parse_double_simple(size_t len, const char *input, ffc_outcome *outcome);
+ffc_result ffc_parse_double(size_t len, const char *input, double *out);
 /**
  * Implements the fast_float algorithm from https://github.com/fastfloat/fast_float
  * See original for more details
@@ -232,13 +232,10 @@ ffc_result ffc_parse_float(size_t len, const char *s, float *out);
 ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
 ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
 
-ffc_result ffc_parse_i64(size_t len, const char input[len], int base, int64_t  *out);
-ffc_result ffc_parse_u64(size_t len, const char input[len], int base, uint64_t *out);
-ffc_result ffc_parse_i32(size_t len, const char input[len], int base, int32_t  *out);
-ffc_result ffc_parse_u32(size_t len, const char input[len], int base, uint32_t *out);
-// nocommit implement more integer overloads
-// ffc_result ffc_from_chars_long(const char *start, const char *end, long* out);
-// ffc_result ffc_from_chars_int(const char *start,  const char *end, int* out);
+ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out);
+ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out);
+ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out);
+ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out);
 
 #endif // FFC_API
 
@@ -380,7 +377,7 @@ ffc_internal ffc_inline size_t ffc_get_value_size(ffc_value_kind vk) {
        (defined(__riscv) && __riscv_xlen == 32))
 #define FFC_32BIT 1
 #else
-  // Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
+// Need to check incrementally, since SIZE_MAX is a size_t, avoid overflow.
 // We can never tell the register width, but the SIZE_MAX is a good
 // approximation. UINTPTR_MAX and INTPTR_MAX are optional, so avoid them for max
 // portability.
@@ -1556,9 +1553,9 @@ void ffc_dump_parsed(ffc_parsed const p) {
 
 // rust style `try!()` macro, or `?` operator
 #define FFC_TRY(x)                                                       \
-  {                                                                            \
-    if (!(x))                                                                  \
-      return false;                                                            \
+  {                                                                      \
+    if (!(x))                                                            \
+      return false;                                                      \
   }
 
 // the limb width: we want efficient multiplication of double the bits in
@@ -3101,28 +3098,28 @@ float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome) {
   return out;
 }
 
-ffc_result ffc_parse_i64(size_t len, const char input[len], int base, int64_t  *out) {
+ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S64, ffc_parse_options_default(), base);
   *out = value_out.s64;
   return result;
 }
-ffc_result ffc_parse_u64(size_t len, const char input[len], int base, uint64_t *out) {
+ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U64, ffc_parse_options_default(), base);
   *out = value_out.u64;
   return result;
 }
-ffc_result ffc_parse_i32(size_t len, const char input[len], int base, int32_t  *out) {
+ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S32, ffc_parse_options_default(), base);
   *out = value_out.s32;
   return result;
 }
-ffc_result ffc_parse_u32(size_t len, const char input[len], int base, uint32_t *out) {
+ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U32, ffc_parse_options_default(), base);

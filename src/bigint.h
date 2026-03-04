@@ -5,9 +5,9 @@
 
 // rust style `try!()` macro, or `?` operator
 #define FFC_TRY(x)                                                       \
-  {                                                                            \
-    if (!(x))                                                                  \
-      return false;                                                            \
+  {                                                                      \
+    if (!(x))                                                            \
+      return false;                                                      \
   }
 
 // the limb width: we want efficient multiplication of double the bits in
