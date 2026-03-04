@@ -16,3 +16,9 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y gcc-multilib
     - name: make test
       run: make test
+    - name: cmake configure
+      run: cmake -B build
+    - name: cmake build
+      run: cmake --build build -j 2
+    - name: cmake test
+      run: ctest --test-dir build -j 2
