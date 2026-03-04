@@ -235,7 +235,7 @@ bool ffc_char_eq_zero(char const *p, size_t char_width) {
 ffc_internal ffc_inline
 void ffc_skip_zeros(char **first, char *last, size_t char_width) {
   size_t cmp_len;
-  size_t cmp_mask;
+  uint64_t cmp_mask;
   switch (char_width) {
     case 1:
       cmp_len = FFC_INT_CMP_LEN_1;
@@ -275,7 +275,7 @@ void ffc_skip_zeros(char **first, char *last, size_t char_width) {
 ffc_internal ffc_inline
 bool ffc_is_truncated(char const *first, char const *last, size_t char_width) {
   size_t cmp_len;
-  size_t cmp_mask;
+  uint64_t cmp_mask;
   switch (char_width) {
     case 1:
       cmp_len = FFC_INT_CMP_LEN_1;

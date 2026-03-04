@@ -2,6 +2,7 @@
 #include "sonicsv.h"
 
 #define FFC_DEBUG 0
+#define FFC_IMPL
 #include "ffc.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -311,6 +312,7 @@ void cb_test(const csv_row_t *row, void *ctx) {
   bool is_neg_max = strncmp(expected_field->data, "-MAX", 4) == 0;
   bool is_min = strncmp(expected_field->data, "MIN", 3) == 0;
   bool is_neg_min = strncmp(expected_field->data, "-MIN", 4) == 0;
+  bool is_neg_nan = strncmp(expected_field->data, "-nan", 4) == 0;
   switch (vk) {
   case FFC_VALUE_KIND_DOUBLE:
     if (is_max) {
@@ -321,6 +323,8 @@ void cb_test(const csv_row_t *row, void *ctx) {
       expected_value.d = DBL_MIN;
     } else if (is_neg_min) {
       expected_value.d = -DBL_MIN;
+    } else if (is_neg_nan) {
+      expected_value.d = -NAN;
     } else {
       expected_value.d = strtod(my_strndup(expected_field->size, expected_field->data), NULL);
     };
@@ -334,6 +338,8 @@ void cb_test(const csv_row_t *row, void *ctx) {
       expected_value.f = FLT_MIN;
     } else if (is_neg_min) {
       expected_value.f = -FLT_MIN;
+    } else if (is_neg_nan) {
+      expected_value.f = -NAN;
     } else {
       expected_value.f = strtof(my_strndup(expected_field->size, expected_field->data), NULL);
     };
@@ -616,6 +622,7 @@ int main(void) {
 
   float_special();
 
+  #define FFC_TEST_EXHAUSTIVE 0
   #if FFC_TEST_EXHAUSTIVE
   exhaustive_32_run();
   #endif
