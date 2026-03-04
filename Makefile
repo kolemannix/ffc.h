@@ -9,9 +9,8 @@ endif
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
 
 out/test_runner: ffc.h test_src/test.c | out
-	gcc -xc -m64 -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
-	gcc -xc -m32 -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
-	clang $(CLANG_FLAGS) -I. -Itest_src -DFFC_IMPL test_src/test.c -o out/test_runner -lm
+	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
+	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner -lm
 
 test: out/test_runner out/test_int_runner
 	./out/test_runner

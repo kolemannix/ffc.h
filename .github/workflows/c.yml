@@ -12,7 +12,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install 32bit headers
-      run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+    - name: make test
+      run: make test
+
+  build-32bit:
+    runs-on: ubuntu-latest
+    container: i386/ubuntu:22.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: apt-get update && apt-get install -y clang gcc make python3
     - name: make test
       run: make test
