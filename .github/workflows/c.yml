@@ -21,7 +21,7 @@ jobs:
 
   build-32bit:
     runs-on: ubuntu-latest
-    container: i386/ubuntu:22.04
+    container: i386/ubuntu
 
     steps:
     - uses: actions/checkout@v4
