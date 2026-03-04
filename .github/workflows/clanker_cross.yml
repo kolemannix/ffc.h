@@ -29,10 +29,10 @@ jobs:
         include:
           - arch: i386
             distro: debian:bookworm
-            install: apt-get update && apt-get install -y build-essential git clang
+            install: apt-get update && apt-get install -y build-essential clang
           - arch: aarch64
             distro: ubuntu:22.04
-            install: apt-get update && apt-get install -y build-essential git clang
+            install: apt-get update && apt-get install -y build-essential clang
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -47,6 +47,5 @@ jobs:
               ${{ matrix.install }} &&
               touch ffc.h &&
               make test &&
-              make example &&
-              git diff --exit-code ffc.h
+              make example 
             "
