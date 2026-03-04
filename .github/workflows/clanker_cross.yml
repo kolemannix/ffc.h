@@ -29,10 +29,10 @@ jobs:
         include:
           - arch: i386
             distro: debian:bookworm
-            install: apt-get update && apt-get install -y build-essential git
+            install: apt-get update && apt-get install -y build-essential git clang
           - arch: aarch64
             distro: ubuntu:22.04
-            install: apt-get update && apt-get install -y build-essential git
+            install: apt-get update && apt-get install -y build-essential git clang
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
