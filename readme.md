@@ -46,6 +46,16 @@ strtod                                  :  1102.63 MB/s (+/- 3.2 %)    52.55 Mfl
 abseil                                  :  1150.63 MB/s (+/- 1.2 %)    54.84 Mfloat/s      24.01 i/B   528.18 i/f (+/- 0.0 %)      3.13 c/B    68.95 c/f (+/- 0.3 %)      7.66 i/c    115.01 b/f      0.56 bm/f      3.78 GHz
 fastfloat                               :  1902.52 MB/s (+/- 1.4 %)    90.68 Mfloat/s      15.19 i/B   334.16 i/f (+/- 0.0 %)      1.90 c/B    41.70 c/f (+/- 0.5 %)      8.01 i/c     57.00 b/f      0.62 bm/f      3.78 GHz
 ffc                                     :  2149.68 MB/s (+/- 1.4 %)   102.46 Mfloat/s      13.60 i/B   299.16 i/f (+/- 0.0 %)      1.67 c/B    36.76 c/f (+/- 0.7 %)      8.14 i/c     50.00 b/f      0.62 bm/f      3.77 GHz
+$ sudo ./build/benchmarks/benchmark32 # with gcc; all others clang
+# parsing random numbers
+model: generate random numbers uniformly in the interval [0.0,1.0]
+volume: 100000 floats
+volume = 2.09808 MB
+loaded db: as3 (Apple silicon)
+strtof                                  :  1160.10 MB/s (+/- 1.4 %)    55.29 Mfloat/s      20.51 i/B   451.13 i/f (+/- 0.0 %)      3.05 c/B    67.10 c/f (+/- 0.9 %)      6.72 i/c   4897.21 b/f      3.71 GHz
+abseil                                  :  1114.52 MB/s (+/- 0.8 %)    53.12 Mfloat/s      24.01 i/B   528.18 i/f (+/- 0.0 %)      3.17 c/B    69.80 c/f (+/- 0.2 %)      7.57 i/c  11501.11 b/f      3.71 GHz
+fastfloat                               :  1986.98 MB/s (+/- 3.8 %)    94.70 Mfloat/s      14.64 i/B   322.13 i/f (+/- 0.0 %)      1.82 c/B    40.02 c/f (+/- 0.9 %)      8.05 i/c   5500.09 b/f      3.79 GHz
+ffc                                     :  2288.40 MB/s (+/- 7.6 %)   109.07 Mfloat/s      13.23 i/B   291.13 i/f (+/- 0.0 %)      1.63 c/B    35.89 c/f (+/- 0.9 %)      8.11 i/c   5100.09 b/f      3.91 GHz
 $ sudo ./build/benchmarks/benchmark -f data/canada.txt
 # read 111126 lines
 ASCII volume = 1.93374 MB
