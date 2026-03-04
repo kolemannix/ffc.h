@@ -417,28 +417,28 @@ float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome) {
   return out;
 }
 
-ffc_result ffc_parse_i64(size_t len, const char input[len], int base, int64_t  *out) {
+ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S64, ffc_parse_options_default(), base);
   *out = value_out.s64;
   return result;
 }
-ffc_result ffc_parse_u64(size_t len, const char input[len], int base, uint64_t *out) {
+ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U64, ffc_parse_options_default(), base);
   *out = value_out.u64;
   return result;
 }
-ffc_result ffc_parse_i32(size_t len, const char input[len], int base, int32_t  *out) {
+ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S32, ffc_parse_options_default(), base);
   *out = value_out.s32;
   return result;
 }
-ffc_result ffc_parse_u32(size_t len, const char input[len], int base, uint32_t *out) {
+ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out) {
   char *pend = (char*)(input + len);
   ffc_int_value value_out;
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U32, ffc_parse_options_default(), base);
