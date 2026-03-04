@@ -322,12 +322,24 @@ bool ffc_sv_large_add_from_zero(ffc_sv* x, ffc_bigint_limb_span y) {
 // grade-school multiplication algorithm
 ffc_internal
 bool ffc_bigint_long_mul(ffc_sv* x, ffc_bigint_limb_span y) {
+#if defined(_MSC_VER) && !defined(__clang__)
+  ffc_bigint_limb_span xs;
+  xs.ptr = x->data;
+  xs.len = x->len;
+#else
   ffc_bigint_limb_span xs = (ffc_bigint_limb_span){ .ptr = x->data, .len = x->len };
+#endif
 
   // full copy of x into z
   ffc_sv z = ffc_sv_create(xs);
 
+#if defined(_MSC_VER) && !defined(__clang__)
+  ffc_bigint_limb_span zs;
+  zs.ptr = z.data;
+  zs.len = z.len;
+#else
   ffc_bigint_limb_span zs = (ffc_bigint_limb_span){ .ptr = z.data, .len = z.len };
+#endif
 
   if (y.len != 0) {
     ffc_bigint_limb y0 = ffc_span_index(y, 0);
@@ -341,7 +353,13 @@ bool ffc_bigint_long_mul(ffc_sv* x, ffc_bigint_limb_span y) {
         zi.len = 0;
         FFC_TRY(ffc_sv_try_extend(&zi, zs));
         FFC_TRY(ffc_bigint_small_mul(&zi, yi));
+#if defined(_MSC_VER) && !defined(__clang__)
+        ffc_bigint_limb_span zis;
+        zis.ptr = zi.data;
+        zis.len = zi.len;
+#else
         ffc_bigint_limb_span zis = (ffc_bigint_limb_span){zi.data, zi.len};
+#endif
         FFC_TRY(ffc_bigint_large_add_from(x, zis, index));
       }
     }
@@ -416,7 +434,13 @@ ffc_inline ffc_internal
 ffc_bigint ffc_bigint_empty(void) {
   ffc_sv sv;
   sv.len = 0;
+#if defined(_MSC_VER) && !defined(__clang__)
+  ffc_bigint sv_bigint;
+  sv_bigint.vec = sv;
+  return sv_bigint;
+#else
   return (ffc_bigint){sv};
+#endif
 }
 
 ffc_inline ffc_internal
@@ -430,7 +454,13 @@ ffc_bigint ffc_bigint_make(uint64_t value) {
   ffc_sv_push_unchecked(&sv, (uint32_t)(value >> 32));
 #endif
   ffc_sv_normalize(&sv);
+#if defined(_MSC_VER) && !defined(__clang__)
+  ffc_bigint sv_bigint;
+  sv_bigint.vec = sv;
+  return sv_bigint;
+#else
   return (ffc_bigint){sv};
+#endif
 }
 
 // get the high 64 bits from the vector, and if bits were truncated.
@@ -602,7 +632,13 @@ ffc_internal ffc_inline
 bool ffc_bigint_pow5(ffc_bigint* me, uint32_t exp) {
   // multiply by a power of 5
   size_t large_length = sizeof(ffc_large_power_of_5) / sizeof(ffc_bigint_limb);
+#if _MSC_VER && !defined(__clang__)
+  ffc_bigint_limb_span large;
+  large.ptr = (ffc_bigint_limb*)ffc_large_power_of_5;
+  large.len = large_length;
+#else
   ffc_bigint_limb_span large = (ffc_bigint_limb_span){ .ptr = (ffc_bigint_limb*)ffc_large_power_of_5, .len = large_length};
+#endif
   while (exp >= pow5_tables_large_step) {
     FFC_TRY(ffc_bigint_large_mul(&me->vec, large));
     exp -= pow5_tables_large_step;
