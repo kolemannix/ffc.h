@@ -83,3 +83,13 @@ target_link_libraries(your_target ffc::ffc)
 as intended for float/double paths and the 4 integer paths.
 - Does not support wide chars; only 1-byte strings (e.g., UTF8) are supported.
 - The 32-bit architecture code is untested
+
+
+## References
+
+* Daniel Lemire, [Number Parsing at a Gigabyte per
+  Second](https://arxiv.org/abs/2101.11408), Software: Practice and Experience
+  51 (8), 2021.
+* Noble Mushtak, Daniel Lemire, [Fast Number Parsing Without
+  Fallback](https://arxiv.org/abs/2212.06644), Software: Practice and Experience
+  53 (7), 2023.
