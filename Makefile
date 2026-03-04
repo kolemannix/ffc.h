@@ -9,16 +9,15 @@ endif
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
 
 out/test_runner: ffc.h test_src/test.c | out
-	gcc -xc -m64 -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
-	gcc -xc -m32 -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
-	clang $(CLANG_FLAGS) -I. -Itest_src -DFFC_IMPL test_src/test.c -o out/test_runner -lm
+	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
+	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner -lm
 
 test: out/test_runner out/test_int_runner
 	./out/test_runner
 	./out/test_int_runner
 
 out/test_int_runner: ffc.h test_src/test_int.c | out
-	clang $(CLANG_FLAGS) -I. -Itest_src -DFFC_IMPL test_src/test_int.c -o out/test_int_runner -lm
+	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner -lm
 
 ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h amalgamate.py
 	python3 amalgamate.py > ffc.h

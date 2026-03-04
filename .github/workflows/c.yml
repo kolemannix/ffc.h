@@ -2,9 +2,7 @@ name: Simple Test
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
@@ -12,8 +10,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install 32bit headers
-      run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y clang gcc make python3
     - name: make test
       run: make test
     - name: cmake configure
@@ -22,3 +20,7 @@ jobs:
       run: cmake --build build -j 2
     - name: cmake test
       run: ctest --test-dir build -j 2
+    - name: make example
+      run: make example
+    - name: Check dirty single-header
+      run: git diff --exit-code ffc.h

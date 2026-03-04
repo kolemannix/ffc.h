@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #define FFC_DEBUG 0
+#define FFC_IMPL
 #include "ffc.h"
 
 static int FAILS = 0;

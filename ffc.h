@@ -550,7 +550,7 @@ ffc_u128 ffc_full_multiplication(uint64_t a, uint64_t b) {
   // But MinGW on ARM64 doesn't have native support for 64-bit multiplications
   answer.high = __umulh(a, b);
   answer.low = a * b;
-#elif defined(FFC_32BIT) || (defined(_WIN64) && !defined(__clang__) &&   \
+#elif (defined(_WIN64) && !defined(__clang__) &&   \
                                    !defined(_M_ARM64) && !defined(__GNUC__))
   answer.low = _umul128(a, b, &answer.high); // _umul128 not available on ARM64
 #elif defined(FFC_64BIT) && defined(__SIZEOF_INT128__)
@@ -851,7 +851,7 @@ static const float FFC_FLOAT_POWERS_OF_TEN[] = {
 
 // Largest integer value v so that (5**index * v) <= 1<<53.
 // 0x20000000000000 == 1 << 53
-#define FFC_55555 (5L * 5L * 5L * 5L * 5L)
+#define FFC_55555 (5LL * 5LL * 5LL * 5LL * 5LL)
 static const uint64_t FFC_DOUBLE_MAX_MANTISSA[] = {
     (uint64_t)0x20000000000000L,
     (uint64_t)0x20000000000000L / 5,
@@ -2417,7 +2417,7 @@ bool ffc_char_eq_zero(char const *p, size_t char_width) {
 ffc_internal ffc_inline
 void ffc_skip_zeros(char **first, char *last, size_t char_width) {
   size_t cmp_len;
-  size_t cmp_mask;
+  uint64_t cmp_mask;
   switch (char_width) {
     case 1:
       cmp_len = FFC_INT_CMP_LEN_1;
@@ -2457,7 +2457,7 @@ void ffc_skip_zeros(char **first, char *last, size_t char_width) {
 ffc_internal ffc_inline
 bool ffc_is_truncated(char const *first, char const *last, size_t char_width) {
   size_t cmp_len;
-  size_t cmp_mask;
+  uint64_t cmp_mask;
   switch (char_width) {
     case 1:
       cmp_len = FFC_INT_CMP_LEN_1;
