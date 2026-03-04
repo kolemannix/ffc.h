@@ -45,6 +45,7 @@ jobs:
             ${{ matrix.distro }} \
             bash -c "
               ${{ matrix.install }} &&
+              touch ffc.h &&
               make test &&
               make example &&
               git diff --exit-code ffc.h
