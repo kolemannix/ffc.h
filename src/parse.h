@@ -509,14 +509,10 @@ ffc_result ffc_parse_int_string(
   }
 
   if (p == pend || base < 2 || base > 36) {
-#if _MSC_VER && !defined(__clang__)
     ffc_result invalid_input_result;
     invalid_input_result.ptr = (char*)p;
     invalid_input_result.outcome = FFC_OUTCOME_INVALID_INPUT;
     return invalid_input_result;
-#else
-    return (ffc_result){ .ptr = (char*)p, .outcome = FFC_OUTCOME_INVALID_INPUT };
-#endif
   }
 
   ffc_result answer;
@@ -561,11 +557,7 @@ ffc_result ffc_parse_int_string(
 
   if (digit_count == 0) {
     if (has_leading_zeros) {
-#if _MSC_VER && !defined(__clang__)
-      value->u64 = 0;
-#else
-      *value = (ffc_int_value){0}; // Largest variants are defined first so this will clear the entire union
-#endif
+      value->u64 = 0; // Must zero the largest variant!
       answer.outcome = FFC_OUTCOME_OK;
       answer.ptr = p;
     } else {

@@ -614,13 +614,11 @@ ffc_internal ffc_inline
 bool ffc_bigint_pow5(ffc_bigint* me, uint32_t exp) {
   // multiply by a power of 5
   size_t large_length = sizeof(ffc_large_power_of_5) / sizeof(ffc_bigint_limb);
-#if _MSC_VER && !defined(__clang__)
+
   ffc_bigint_limb_span large;
   large.ptr = (ffc_bigint_limb*)ffc_large_power_of_5;
   large.len = large_length;
-#else
-  ffc_bigint_limb_span large = (ffc_bigint_limb_span){ .ptr = (ffc_bigint_limb*)ffc_large_power_of_5, .len = large_length};
-#endif
+
   while (exp >= pow5_tables_large_step) {
     FFC_TRY(ffc_bigint_large_mul(&me->vec, large));
     exp -= pow5_tables_large_step;
