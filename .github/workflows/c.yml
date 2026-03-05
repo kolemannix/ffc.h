@@ -14,6 +14,12 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y clang gcc make python3
     - name: make test
       run: make test
+    - name: cmake configure
+      run: cmake -B build
+    - name: cmake build
+      run: cmake --build build -j 2
+    - name: cmake test
+      run: ctest --test-dir build -j 2
     - name: make example
       run: make example
     - name: Check dirty single-header
