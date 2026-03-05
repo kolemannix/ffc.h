@@ -80,11 +80,13 @@ bool ffc_int_kind_is_signed(ffc_int_kind ik) {
 
 ffc_internal ffc_inline
 ffc_value_bits ffc_get_value_bits(ffc_value value, ffc_value_kind vk) {
+  ffc_value_bits bits;
   if (vk == FFC_VALUE_KIND_DOUBLE) {
-    return (ffc_value_bits){.di=ffc_get_double_bits(value.d)};
+    bits.di = ffc_get_double_bits(value.d);
   } else {
-    return (ffc_value_bits){.fi=ffc_get_float_bits(value.f)};
+    bits.fi = ffc_get_float_bits(value.f);
   }
+  return bits;
 }
 
 ffc_internal ffc_inline

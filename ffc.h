@@ -322,11 +322,13 @@ bool ffc_int_kind_is_signed(ffc_int_kind ik) {
 
 ffc_internal ffc_inline
 ffc_value_bits ffc_get_value_bits(ffc_value value, ffc_value_kind vk) {
+  ffc_value_bits bits;
   if (vk == FFC_VALUE_KIND_DOUBLE) {
-    return (ffc_value_bits){.di=ffc_get_double_bits(value.d)};
+    bits.di = ffc_get_double_bits(value.d);
   } else {
-    return (ffc_value_bits){.fi=ffc_get_float_bits(value.f)};
+    bits.fi = ffc_get_float_bits(value.f);
   }
+  return bits;
 }
 
 ffc_internal ffc_inline
@@ -1416,7 +1418,10 @@ ffc_result ffc_parse_int_string(
   }
 
   if (p == pend || base < 2 || base > 36) {
-    return (ffc_result){ .ptr = (char*)p, .outcome = FFC_OUTCOME_INVALID_INPUT };
+    ffc_result invalid_input_result;
+    invalid_input_result.ptr = (char*)p;
+    invalid_input_result.outcome = FFC_OUTCOME_INVALID_INPUT;
+    return invalid_input_result;
   }
 
   ffc_result answer;
@@ -1461,7 +1466,7 @@ ffc_result ffc_parse_int_string(
 
   if (digit_count == 0) {
     if (has_leading_zeros) {
-      *value = (ffc_int_value){0}; // Largest variants are defined first so this will clear the entire union
+      value->u64 = 0; // Must zero the largest variant!
       answer.outcome = FFC_OUTCOME_OK;
       answer.ptr = p;
     } else {
@@ -1706,6 +1711,7 @@ void ffc_sv_normalize(ffc_sv* sv) {
 
 ffc_internal ffc_inline
 uint64_t ffc_uint64_hi64_1(uint64_t r0, bool* truncated) {
+  FFC_DEBUG_ASSERT(r0 != 0);
   *truncated = false;
   int shl = (int)ffc_count_leading_zeroes(r0);
   return r0 << shl;
@@ -1713,6 +1719,7 @@ uint64_t ffc_uint64_hi64_1(uint64_t r0, bool* truncated) {
 
 ffc_internal ffc_inline
 uint64_t ffc_uint64_hi64_2(uint64_t r0, uint64_t r1, bool* truncated) {
+  FFC_DEBUG_ASSERT(r0 != 0);
   int shl = (int)ffc_count_leading_zeroes(r0);
   if (shl == 0) {
     *truncated = r1 != 0;
@@ -1870,12 +1877,16 @@ bool ffc_sv_large_add_from_zero(ffc_sv* x, ffc_bigint_limb_span y) {
 // grade-school multiplication algorithm
 ffc_internal
 bool ffc_bigint_long_mul(ffc_sv* x, ffc_bigint_limb_span y) {
-  ffc_bigint_limb_span xs = (ffc_bigint_limb_span){ .ptr = x->data, .len = x->len };
+  ffc_bigint_limb_span xs;
+  xs.ptr = x->data;
+  xs.len = x->len;
 
   // full copy of x into z
   ffc_sv z = ffc_sv_create(xs);
 
-  ffc_bigint_limb_span zs = (ffc_bigint_limb_span){ .ptr = z.data, .len = z.len };
+  ffc_bigint_limb_span zs;
+  zs.ptr = z.data;
+  zs.len = z.len;
 
   if (y.len != 0) {
     ffc_bigint_limb y0 = ffc_span_index(y, 0);
@@ -1889,7 +1900,9 @@ bool ffc_bigint_long_mul(ffc_sv* x, ffc_bigint_limb_span y) {
         zi.len = 0;
         FFC_TRY(ffc_sv_try_extend(&zi, zs));
         FFC_TRY(ffc_bigint_small_mul(&zi, yi));
-        ffc_bigint_limb_span zis = (ffc_bigint_limb_span){zi.data, zi.len};
+        ffc_bigint_limb_span zis;
+        zis.ptr = zi.data;
+        zis.len = zi.len;
         FFC_TRY(ffc_bigint_large_add_from(x, zis, index));
       }
     }
@@ -1964,7 +1977,10 @@ ffc_inline ffc_internal
 ffc_bigint ffc_bigint_empty(void) {
   ffc_sv sv;
   sv.len = 0;
-  return (ffc_bigint){sv};
+
+  ffc_bigint sv_bigint;
+  sv_bigint.vec = sv;
+  return sv_bigint;
 }
 
 ffc_inline ffc_internal
@@ -1978,7 +1994,10 @@ ffc_bigint ffc_bigint_make(uint64_t value) {
   ffc_sv_push_unchecked(&sv, (uint32_t)(value >> 32));
 #endif
   ffc_sv_normalize(&sv);
-  return (ffc_bigint){sv};
+
+  ffc_bigint sv_bigint;
+  sv_bigint.vec = sv;
+  return sv_bigint;
 }
 
 // get the high 64 bits from the vector, and if bits were truncated.
@@ -2150,7 +2169,11 @@ ffc_internal ffc_inline
 bool ffc_bigint_pow5(ffc_bigint* me, uint32_t exp) {
   // multiply by a power of 5
   size_t large_length = sizeof(ffc_large_power_of_5) / sizeof(ffc_bigint_limb);
-  ffc_bigint_limb_span large = (ffc_bigint_limb_span){ .ptr = (ffc_bigint_limb*)ffc_large_power_of_5, .len = large_length};
+
+  ffc_bigint_limb_span large;
+  large.ptr = (ffc_bigint_limb*)ffc_large_power_of_5;
+  large.len = large_length;
+
   while (exp >= pow5_tables_large_step) {
     FFC_TRY(ffc_bigint_large_mul(&me->vec, large));
     exp -= pow5_tables_large_step;
@@ -3100,28 +3123,28 @@ float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome) {
 
 ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out) {
   char *pend = (char*)(input + len);
-  ffc_int_value value_out;
+  ffc_int_value value_out = {0};
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S64, ffc_parse_options_default(), base);
   *out = value_out.s64;
   return result;
 }
 ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out) {
   char *pend = (char*)(input + len);
-  ffc_int_value value_out;
+  ffc_int_value value_out = {0};
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U64, ffc_parse_options_default(), base);
   *out = value_out.u64;
   return result;
 }
 ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out) {
   char *pend = (char*)(input + len);
-  ffc_int_value value_out;
+  ffc_int_value value_out = {0};
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_S32, ffc_parse_options_default(), base);
   *out = value_out.s32;
   return result;
 }
 ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out) {
   char *pend = (char*)(input + len);
-  ffc_int_value value_out;
+  ffc_int_value value_out = {0};
   ffc_result result = ffc_parse_int_string(input, pend, &value_out, FFC_INT_KIND_U32, ffc_parse_options_default(), base);
   *out = value_out.u32;
   return result;
@@ -3166,5 +3189,4 @@ ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out)
 #endif
 
 #endif /* FFC_H */
-
 

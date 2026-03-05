@@ -115,7 +115,7 @@ bool float_eq(float exp, float act) {
   };
 }
 
-void assert_double(size_t len, char *input, double exp, double act) {
+void assert_double(size_t len, const char *input, double exp, double act) {
   if (!double_eq(exp, act)) {
     printf("\n\ninput: %.*s\n", (int)len, input);
     printf("\texp: %f\n\tact: %f\n\n", exp, act);
@@ -124,7 +124,7 @@ void assert_double(size_t len, char *input, double exp, double act) {
   }
 }
 
-void assert_float(size_t len, char *input, float exp, float act) {
+void assert_float(size_t len, const char *input, float exp, float act) {
   if (!float_eq(exp, act)) {
     printf("\n\ninput: %.*s\n", (int)len, input);
     printf("\texp: %f\n\tact: %f\n\n", exp, act);
@@ -133,10 +133,10 @@ void assert_float(size_t len, char *input, float exp, float act) {
   }
 }
 
-void verify_ext(size_t len, char input[len], ffc_value exp_value, ffc_value_kind vk, ffc_outcome exp_outcome, ffc_parse_options options) {
+void verify_ext(size_t len, const char *input, ffc_value exp_value, ffc_value_kind vk, ffc_outcome exp_outcome, ffc_parse_options options) {
   ffc_value value;
 
-  ffc_result result = ffc_from_chars(input, &input[len], options, &value, vk);
+  ffc_result result = ffc_from_chars((char*)input, (char*)&input[len], options, &value, vk);
 
   if (exp_outcome != result.outcome) {
     printf("\n\ninput: %.*s\n", (int)len, input);
@@ -158,19 +158,19 @@ void verify_ext(size_t len, char input[len], ffc_value exp_value, ffc_value_kind
   }
 }
 
-void verify_double_ext(size_t len, char input[len], double exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
+void verify_double_ext(size_t len, const char *input, double exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
   ffc_value expected;
   expected.d = exp_value;
   verify_ext(len, input, expected, FFC_VALUE_KIND_DOUBLE, exp_outcome, options);
 }
 
-void verify_float_ext(size_t len, char input[len], float exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
+void verify_float_ext(size_t len, const char *input, float exp_value, ffc_outcome exp_outcome, ffc_parse_options options) {
   ffc_value expected;
   expected.f = exp_value;
   verify_ext(len, input, expected, FFC_VALUE_KIND_FLOAT, exp_outcome, options);
 }
 
-void verify_float(char *input, float exp_value) {
+void verify_float(const char *input, float exp_value) {
   verify_float_ext(strlen(input), input, exp_value, FFC_OUTCOME_OK, ffc_parse_options_default());
 }
 
@@ -634,4 +634,3 @@ int main(void) {
 
   return 0;
 }
-
