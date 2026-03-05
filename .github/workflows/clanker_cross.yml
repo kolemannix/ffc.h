@@ -30,9 +30,7 @@ jobs:
           - arch: i386
             distro: debian:bookworm
             install: apt-get update && apt-get install -y build-essential clang
-          - arch: aarch64
-            distro: ubuntu:22.04
-            install: apt-get update && apt-get install -y build-essential clang
+          # more archs here
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -49,3 +47,15 @@ jobs:
               make test &&
               make example 
             "
+
+  aarch64:
+    name: Linux aarch64 (native)
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential clang
+      - name: make test
+        run: touch ffc.h && make test
+      - name: make example
+        run: make example
