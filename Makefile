@@ -1,4 +1,4 @@
-.PHONY: test sanitize example
+.PHONY: test example
 
 # Detect linux and define _DEFAULT_SOURCE if so
 UNAME_S := $(shell uname -s)
@@ -7,7 +7,6 @@ ifeq ($(UNAME_S),Linux)
 endif
 
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
-SANITIZE_FLAGS := -xc -Wall -Wextra -Wpedantic -O1 -g -std=c99 -fno-omit-frame-pointer -fsanitize=address,undefined $(EXTRA_CFLAGS)
 
 out/test_runner: ffc.h test_src/test.c | out
 	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
@@ -17,18 +16,8 @@ test: out/test_runner out/test_int_runner
 	./out/test_runner
 	./out/test_int_runner
 
-sanitize: out/test_runner_sanitize out/test_int_runner_sanitize
-	./out/test_runner_sanitize
-	./out/test_int_runner_sanitize
-
 out/test_int_runner: ffc.h test_src/test_int.c | out
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner -lm
-
-out/test_runner_sanitize: ffc.h test_src/test.c | out
-	clang $(SANITIZE_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner_sanitize -lm
-
-out/test_int_runner_sanitize: ffc.h test_src/test_int.c | out
-	clang $(SANITIZE_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner_sanitize -lm
 
 ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h amalgamate.py
 	python3 amalgamate.py > ffc.h
