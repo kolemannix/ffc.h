@@ -33,7 +33,7 @@ char *double_to_string(double d, char *buffer) {
   return buffer + written;
 }
 
-inline ffc_outcome parse_outcome(uint64_t len, const char* outcome_text) {
+static inline ffc_outcome parse_outcome(uint64_t len, const char* outcome_text) {
     static const struct { const char *name; ffc_outcome val; } map[] = {
         {"ok",           FFC_OUTCOME_OK},
         {"out_of_range", FFC_OUTCOME_OUT_OF_RANGE},
