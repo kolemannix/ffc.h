@@ -92,7 +92,7 @@ To use ffc.h as a dependency in your CMake project, you have two options:
 include(FetchContent)
 FetchContent_Declare(
     ffc
-    GIT_REPOSITORY https://github.com/dlemire/ffc.h.git
+    GIT_REPOSITORY https://github.com/kolemannix/ffc.h.git
     GIT_TAG main
 )
 FetchContent_MakeAvailable(ffc)
