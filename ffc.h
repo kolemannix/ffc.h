@@ -322,17 +322,13 @@ bool ffc_int_kind_is_signed(ffc_int_kind ik) {
 
 ffc_internal ffc_inline
 ffc_value_bits ffc_get_value_bits(ffc_value value, ffc_value_kind vk) {
+  ffc_value_bits bits;
   if (vk == FFC_VALUE_KIND_DOUBLE) {
-#if _MSC_VER && !defined(__clang__)
-    ffc_value_bits bits;
     bits.di = ffc_get_double_bits(value.d);
-    return bits;
-#else
-    return (ffc_value_bits){.di=ffc_get_double_bits(value.d)};
-#endif
   } else {
-    return (ffc_value_bits){.fi=ffc_get_float_bits(value.f)};
+    bits.fi = ffc_get_float_bits(value.f);
   }
+  return bits;
 }
 
 ffc_internal ffc_inline
@@ -1422,14 +1418,10 @@ ffc_result ffc_parse_int_string(
   }
 
   if (p == pend || base < 2 || base > 36) {
-#if _MSC_VER && !defined(__clang__)
     ffc_result invalid_input_result;
     invalid_input_result.ptr = (char*)p;
     invalid_input_result.outcome = FFC_OUTCOME_INVALID_INPUT;
     return invalid_input_result;
-#else
-    return (ffc_result){ .ptr = (char*)p, .outcome = FFC_OUTCOME_INVALID_INPUT };
-#endif
   }
 
   ffc_result answer;
@@ -1474,11 +1466,7 @@ ffc_result ffc_parse_int_string(
 
   if (digit_count == 0) {
     if (has_leading_zeros) {
-#if _MSC_VER && !defined(__clang__)
-      value->u64 = 0;
-#else
-      *value = (ffc_int_value){0}; // Largest variants are defined first so this will clear the entire union
-#endif
+      value->u64 = 0; // Must zero the largest variant!
       answer.outcome = FFC_OUTCOME_OK;
       answer.ptr = p;
     } else {
@@ -2179,13 +2167,11 @@ ffc_internal ffc_inline
 bool ffc_bigint_pow5(ffc_bigint* me, uint32_t exp) {
   // multiply by a power of 5
   size_t large_length = sizeof(ffc_large_power_of_5) / sizeof(ffc_bigint_limb);
-#if _MSC_VER && !defined(__clang__)
+
   ffc_bigint_limb_span large;
   large.ptr = (ffc_bigint_limb*)ffc_large_power_of_5;
   large.len = large_length;
-#else
-  ffc_bigint_limb_span large = (ffc_bigint_limb_span){ .ptr = (ffc_bigint_limb*)ffc_large_power_of_5, .len = large_length};
-#endif
+
   while (exp >= pow5_tables_large_step) {
     FFC_TRY(ffc_bigint_large_mul(&me->vec, large));
     exp -= pow5_tables_large_step;
