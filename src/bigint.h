@@ -158,6 +158,7 @@ void ffc_sv_normalize(ffc_sv* sv) {
 
 ffc_internal ffc_inline
 uint64_t ffc_uint64_hi64_1(uint64_t r0, bool* truncated) {
+  FFC_DEBUG_ASSERT(r0 != 0);
   *truncated = false;
   int shl = (int)ffc_count_leading_zeroes(r0);
   return r0 << shl;
@@ -165,6 +166,7 @@ uint64_t ffc_uint64_hi64_1(uint64_t r0, bool* truncated) {
 
 ffc_internal ffc_inline
 uint64_t ffc_uint64_hi64_2(uint64_t r0, uint64_t r1, bool* truncated) {
+  FFC_DEBUG_ASSERT(r0 != 0);
   int shl = (int)ffc_count_leading_zeroes(r0);
   if (shl == 0) {
     *truncated = r1 != 0;

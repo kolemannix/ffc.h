@@ -30,4 +30,3 @@ example: out/example
 
 out:
 	mkdir -p out
-
