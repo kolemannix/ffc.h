@@ -1,4 +1,4 @@
-.PHONY: test example
+.PHONY: test example exhaustive
 
 # Detect linux and define _DEFAULT_SOURCE if so
 UNAME_S := $(shell uname -s)
@@ -7,6 +7,7 @@ ifeq ($(UNAME_S),Linux)
 endif
 
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
+CLANG_PTHREAD_FLAGS := $(CLANG_FLAGS) -pthread
 
 out/test_runner: ffc.h test_src/test.c | out
 	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
@@ -16,8 +17,14 @@ test: out/test_runner out/test_int_runner
 	./out/test_runner
 	./out/test_int_runner
 
+exhaustive: out/test_exhaustive_runner
+	./out/test_exhaustive_runner
+
 out/test_int_runner: ffc.h test_src/test_int.c | out
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner -lm
+
+out/test_exhaustive_runner: ffc.h test_src/test_exhaustive.c | out
+	clang $(CLANG_PTHREAD_FLAGS) -I. -Itest_src test_src/test_exhaustive.c -o out/test_exhaustive_runner -lm
 
 ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h amalgamate.py
 	python3 amalgamate.py > ffc.h
