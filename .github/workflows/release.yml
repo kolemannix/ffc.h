@@ -38,3 +38,5 @@ jobs:
             ffc.h
             ffc.h.sha256
           fail_on_unmatched_files: true
+          generate_release_notes: true
+          draft: true
