@@ -16,11 +16,7 @@ jobs:
     - name: Configure
       run: |
         cmake -B build
-    - name: Build Debug
-      run: cmake --build build --config Debug --verbose
     - name: Build Release
       run: cmake --build build --config Release --verbose
-    - name: Test Debug
-      run: ctest --test-dir build -C Debug
     - name: Test Release
       run: ctest --test-dir build -C Release 
