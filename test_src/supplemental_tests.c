@@ -1,3 +1,4 @@
+#define FFC_IMPL
 #include "ffc.h"
 #include <stdio.h>
 #include <stdlib.h>

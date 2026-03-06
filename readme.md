@@ -70,6 +70,10 @@ make test
 make example
 ```
 
+`make test` builds and runs the base tests plus supplemental tests.
+Run `make fetch-supplemental-data` once first to clone `supplemental_test_files`
+into `out/`.
+
 ### With CMake
 
 ffc.h supports building with CMake as an installable single-header library.
