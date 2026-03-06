@@ -77,10 +77,10 @@ typedef enum ffc_parse_outcome {
 } ffc_parse_outcome;
 
 /*
- * A simplified API for simple use cases; the result will be 0.0 on error, not uninitialized.
+ * A simplified API; the result will be 0.0 on error, not uninitialized.
  * If outcome is null, it will not be written to
  */
-double ffc_parse_double_simple(size_t len, const char *input, ffc_outcome *outcome);
+double     ffc_parse_double_simple(size_t len, const char *input, ffc_outcome *outcome);
 ffc_result ffc_parse_double(size_t len, const char *input, double *out);
 /**
  * Implements the fast_float algorithm from https://github.com/fastfloat/fast_float
@@ -113,10 +113,10 @@ ffc_result ffc_from_chars_double(const char *start, const char *end, double* out
 ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
 /*
- * A simplified API for simple use cases; the result will be 0.0 on error, not uninitialized.
+ * A simplified API; the result will be 0.0 on error, not uninitialized.
  * If outcome is null, it will not be written to
  */
-float ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome);
+float      ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome);
 ffc_result ffc_parse_float(size_t len, const char *s, float *out);
 ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
 ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
@@ -125,5 +125,14 @@ ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out)
 ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out);
 ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out);
 ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out);
+
+/*
+ * A simplified API; the result will be 0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
+int64_t  ffc_parse_i64_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+uint64_t ffc_parse_u64_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+int32_t  ffc_parse_i32_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+uint32_t ffc_parse_u32_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
 
 #endif // FFC_API

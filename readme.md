@@ -157,15 +157,6 @@ fastfloat                               :   964.77 MB/s (+/- 9.6 %)   131.43 Mfl
 ffc                                     :  1019.67 MB/s (+/- 7.3 %)   138.91 Mfloat/s      22.41 i/B   172.53 i/f (+/- 0.0 %)      3.75 c/B    28.89 c/f (+/- 1.5 %)      5.97 i/c     37.98 b/f      7.37 bm/f      4.01 GHz
 ```
 
-## TODO
-
-- [ ] Add the other integer overloads (exposing options)
-
-## Caveats
-- Does not support wide chars; only 1-byte strings (e.g., UTF8) are supported.
-- The 32-bit architecture code is untested
-
-
 ## References
 
 * Daniel Lemire, [Number Parsing at a Gigabyte per

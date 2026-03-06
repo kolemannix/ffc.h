@@ -446,6 +446,39 @@ ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out)
   return result;
 }
 
+int64_t  ffc_parse_i64_simple(size_t len, const char *input, int base, ffc_outcome *outcome) {
+  int64_t out = 0;
+  ffc_result result = ffc_parse_i64(len, input, base, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
+}
+uint64_t ffc_parse_u64_simple(size_t len, const char *input, int base, ffc_outcome *outcome) {
+  uint64_t out = 0;
+  ffc_result result = ffc_parse_u64(len, input, base, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
+}
+int32_t  ffc_parse_i32_simple(size_t len, const char *input, int base, ffc_outcome *outcome) {
+  int32_t out = 0;
+  ffc_result result = ffc_parse_i32(len, input, base, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
+}
+uint32_t ffc_parse_u32_simple(size_t len, const char *input, int base, ffc_outcome *outcome) {
+  uint32_t out = 0;
+  ffc_result result = ffc_parse_u32(len, input, base, &out);
+  if (outcome) {
+    *outcome = result.outcome;
+  }
+  return out;
+}
+
 #undef FFC_DOUBLE_SMALLEST_POWER_OF_10        
 #undef FFC_DOUBLE_LARGEST_POWER_OF_10         
 #undef FFC_DOUBLE_SIGN_INDEX                  
