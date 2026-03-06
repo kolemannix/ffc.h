@@ -7,8 +7,6 @@ ifeq ($(UNAME_S),Linux)
 endif
 
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
-SUPPLEMENTAL_TEST_FILES_DIR := out/supplemental_test_files
-SUPPLEMENTAL_TEST_DATA_DIR := $(SUPPLEMENTAL_TEST_FILES_DIR)/data
 
 ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h amalgamate.py
 	python3 amalgamate.py > ffc.h
@@ -26,7 +24,7 @@ out/test_runner: ffc.h test_src/test.c | out
 	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner -lm
 
-test: out/test_runner out/test_int_runner out/supplemental_tests
+test: out/test_runner out/test_int_runner
 	./out/test_runner
 	./out/test_int_runner
 
@@ -35,6 +33,8 @@ out/test_int_runner: ffc.h test_src/test_int.c | out
 
 
 # Supplemental test stuff
+SUPPLEMENTAL_TEST_FILES_DIR := out/supplemental_test_files
+SUPPLEMENTAL_TEST_DATA_DIR := $(SUPPLEMENTAL_TEST_FILES_DIR)/data
 
 fetch-supplemental-data: | out
 	git clone --depth 1 https://github.com/fastfloat/supplemental_test_files.git $(SUPPLEMENTAL_TEST_FILES_DIR)
