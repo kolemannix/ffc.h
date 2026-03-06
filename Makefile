@@ -1,4 +1,4 @@
-.PHONY: test example fetch-supplemental-data supplemental_tests
+.PHONY: test example exhaustive fetch-supplemental-data supplemental_tests
 
 # Detect linux and define _DEFAULT_SOURCE if so
 UNAME_S := $(shell uname -s)
@@ -33,6 +33,7 @@ out/test_int_runner: ffc.h test_src/test_int.c | out
 
 
 # Supplemental test stuff
+
 SUPPLEMENTAL_TEST_FILES_DIR := out/supplemental_test_files
 SUPPLEMENTAL_TEST_DATA_DIR := $(SUPPLEMENTAL_TEST_FILES_DIR)/data
 
@@ -51,3 +52,13 @@ out/supplemental_tests: ffc.h test_src/supplemental_tests.c $(SUPPLEMENTAL_TEST_
 
 supplemental_tests: out/supplemental_tests
 	./out/supplemental_tests
+
+
+# Exhaustive stuff
+
+exhaustive: out/test_exhaustive_runner
+	./out/test_exhaustive_runner
+
+out/test_exhaustive_runner: ffc.h test_src/test_exhaustive.c | out
+	clang $(CLANG_FLAGS) -pthread -I. -Itest_src test_src/test_exhaustive.c -o out/test_exhaustive_runner -lm
+

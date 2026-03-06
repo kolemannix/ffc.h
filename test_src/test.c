@@ -9,29 +9,10 @@
 #include <fenv.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <string.h>
 
 #define FLOAT_MAXDIGITS_10 9
 #define DOUBLE_MAXDIGITS_10 17
-
-char *float_to_string_long(float f, char *buffer) {
-  int written = snprintf(buffer, 128, "%.*e", 64, f);
-  return buffer + written;
-}
-
-char *float_to_string(float f, char *buffer) {
-  int written = snprintf(buffer, 64, "%.*e", FLOAT_MAXDIGITS_10 - 1, f);
-  return buffer + written;
-}
-
-char *double_to_string_long(double d, char *buffer) {
-  int written = snprintf(buffer, 128, "%.*e", 64, d);
-  return buffer + written;
-}
-
-char *double_to_string(double d, char *buffer) {
-  int written = snprintf(buffer, 64, "%.*e", FLOAT_MAXDIGITS_10 - 1, d);
-  return buffer + written;
-}
 
 static inline ffc_outcome parse_outcome(uint64_t len, const char* outcome_text) {
     static const struct { const char *name; ffc_outcome val; } map[] = {
@@ -366,88 +347,6 @@ void test_file(const char* filename, csv_row_callback_t cb, ffc_parse_options op
     csv_parser_destroy(p);
 }
 
-ffc_result roundtrip_float(float f, float *result, bool do_long) {
-  char buffer[128];
-  char const *string_end = do_long ? float_to_string_long(f, buffer) : float_to_string(f, buffer);
-  ffc_result parse_result = ffc_from_chars_float(buffer, string_end, result);
-  return parse_result;
-}
-
-void test_exhaustive(char *buffer, bool do_long) {
-  for (uint64_t w = 0; w <= 0xFFFFFFFF; w++) {
-    float f;
-    double d;
-    if ((w % 1048576) == 0) {
-      printf("%"PRIu64" / %"PRIu32"\n", w / 1048576, 0xFFFFFFFF / 1048576);
-    }
-    uint32_t word32 = (uint32_t)(w);
-
-    memcpy(&f, &word32, sizeof(f));
-    memcpy(&d, &w, sizeof(d));
-
-#if 1
-    {
-      char const *string_end = do_long ? float_to_string_long(f, buffer) : float_to_string(f, buffer);
-      float result_value;
-      ffc_result result = ffc_from_chars_float(buffer, string_end, &result_value);
-      // Starting with version 4.0 for fast_float, we return result_out_of_range
-      // if the value is either too small (too close to zero) or too large
-      // (effectively infinity). So std::errc::result_out_of_range is normal for
-      // well-formed input strings.
-      if (result.outcome != FFC_OUTCOME_OK &&
-          result.outcome != FFC_OUTCOME_OUT_OF_RANGE) {
-        fprintf(stderr, "(32) parsing error ? %s\n", buffer);
-        abort();
-      }
-      if (isnan(f)) {
-        if (!isnan(result_value)) {
-          fprintf(stderr, "(32) not nan %s\n", buffer);
-          abort();
-        }
-      } else if (copysign(1, result_value) != copysign(1, f)) {
-        fprintf(stderr, "(32) %s\n", buffer);
-        fprintf(stderr, "(32) I got %a but I was expecting %a\n", result_value, f);
-        abort();
-      } else if (result_value != f) {
-        fprintf(stderr, "(32) fail for w = %"PRIu64"\n%s got %f expected %f\n", w, buffer, result_value, f);
-        fprintf(stderr, "(32) started with %a\n", f);
-        fprintf(stderr, "(32) got back     %a\n", result_value);
-        abort();
-      }
-    }
-#endif
-    {
-      char const *string_end = do_long ? double_to_string_long(d, buffer) : double_to_string(d, buffer);
-      double result_double;
-      ffc_result result = ffc_from_chars_double(buffer, string_end, &result_double);
-      // Starting with version 4.0 for fast_float, we return result_out_of_range
-      // if the value is either too small (too close to zero) or too large
-      // (effectively infinity). So std::errc::result_out_of_range is normal for
-      // well-formed input strings.
-      if (result.outcome != FFC_OUTCOME_OK &&
-          result.outcome != FFC_OUTCOME_OUT_OF_RANGE) {
-        fprintf(stderr, "(64) parsing error ? %s\n", buffer);
-        abort();
-      }
-      if (!double_eq(result_double, d)) {
-        fprintf(stderr, "(64) fail for w = %"PRIu64"\n%s got %f expected %f\n", w, buffer, result_double, d);
-        fprintf(stderr, "(64) started with %a\n", d);
-        fprintf(stderr, "(64) got back     %a\n", result_double);
-        abort();
-      }
-    }
-  }
-  puts("");
-}
-
-void exhaustive_32_run(void) {
-  char buffer_long[128];
-  test_exhaustive(buffer_long, true);
-  puts("\nall ok");
-  return;
-}
-
-
 void double_rounds_to_nearest(void) {
  static volatile double fmin = DBL_MIN;
     char *s1, *s2;
@@ -594,7 +493,6 @@ void float_special(void) {
 }
 
 int main(void) {
-
   // verify_float("1.1754942807573642917e-38", 0x1.fffffcp-127f);
   // exit(0);
 
@@ -621,11 +519,6 @@ int main(void) {
   double_parse_negative_zero();
 
   float_special();
-
-  #define FFC_TEST_EXHAUSTIVE 0
-  #if FFC_TEST_EXHAUSTIVE
-  exhaustive_32_run();
-  #endif
 
   if (FAILS != 0) {
     fprintf(stderr, "Test failures from csvs: %d\n", FAILS);
