@@ -496,7 +496,7 @@ ffc_adjusted_mantissa ffc_negative_digit_comp(
 // `b` as a big-integer type, scaled to the same binary exponent as
 // the actual digits. we then compare the big integer representations
 // of both, and use that to direct rounding.
-ffc_internal ffc_inline
+ffc_internal
 ffc_adjusted_mantissa ffc_digit_comp(ffc_parsed num, ffc_adjusted_mantissa am, ffc_value_kind vk) {
   ffc_debug("digit_comp\n");
   // remove the invalid exponent bias
