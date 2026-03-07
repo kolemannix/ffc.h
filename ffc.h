@@ -114,8 +114,8 @@ extern "C" {
 #define FFC_API
 
 #define FFC_VERSION_YEAR  26
-#define FFC_VERSION_MONTH 02
-#define FFC_VERSION_BUILD 01
+#define FFC_VERSION_MONTH 03
+#define FFC_VERSION_BUILD 02
 #define FFC_VERSION ((FFC_VERSION_YEAR << 16) | (FFC_VERSION_MONTH << 8) | (FFC_VERSION_BUILD))
 
 #include <stddef.h>
