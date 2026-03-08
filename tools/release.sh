@@ -1,14 +1,14 @@
 set -e
 set -x
 
-if [ -z "$1" ]; then
-  echo "usage: $0 <n>"
+if [ "$#" -ne 0 ]; then
+  echo "usage: $0"
   exit 1
 fi
 
-year="$(date +%y)"
-month="$(date +%m)"
-tag="v${year}.${month}.$1"
+make ffc.h
+git diff --exit-code ffc.h
+tag="$(make -s print_version_tag)"
 
 echo "releasing version ${tag}"
 git tag -a "${tag}" -m "${tag}"

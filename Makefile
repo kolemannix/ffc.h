@@ -1,4 +1,4 @@
-.PHONY: test example exhaustive fetch-supplemental-data supplemental_tests
+.PHONY: test example exhaustive fetch-supplemental-data supplemental_tests print_version_tag
 
 # Detect linux and define _DEFAULT_SOURCE if so
 UNAME_S := $(shell uname -s)
@@ -16,6 +16,12 @@ out/example: ffc.h example.c | out
 
 example: out/example
 	./out/example
+
+out/print_version_tag: tools/print_version_tag.c src/api.h | out
+	clang $(CLANG_FLAGS) -I. tools/print_version_tag.c -o out/print_version_tag
+
+print_version_tag: out/print_version_tag
+	./out/print_version_tag
 
 out:
 	mkdir -p out
@@ -61,4 +67,3 @@ exhaustive: out/test_exhaustive_runner
 
 out/test_exhaustive_runner: ffc.h test_src/test_exhaustive.c | out
 	clang $(CLANG_FLAGS) -pthread -I. -Itest_src test_src/test_exhaustive.c -o out/test_exhaustive_runner -lm
-
