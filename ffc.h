@@ -1640,7 +1640,8 @@ bool ffc_sv_try_extend(ffc_sv* sv, ffc_bigint_limb_span s) {
 // create from existing limb span.
 ffc_internal ffc_inline
 ffc_sv ffc_sv_create(ffc_bigint_limb_span s) {
-  ffc_sv new_one = {0};
+  ffc_sv new_one;
+  new_one.len = 0;
   ffc_sv_try_extend(&new_one, s);
   return new_one;
 }
