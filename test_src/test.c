@@ -492,6 +492,62 @@ void float_special(void) {
   verify_float("1.1754943508e-45f", 1.1754943508e-45f);
 }
 
+void double_json_mode(void) {
+  struct test_case {
+    char *input;
+    ffc_outcome expected_outcome;
+    double expected_value;
+  };
+
+  // valid stuff
+  const struct test_case ok_cases[] = {
+    {"0",       FFC_OUTCOME_OK, 0.0},
+    {"-0",      FFC_OUTCOME_OK, 0.0},
+    {"1",       FFC_OUTCOME_OK, 1.0},
+    {"-1",      FFC_OUTCOME_OK, -1.0},
+    {"123",     FFC_OUTCOME_OK, 123.0},
+    {"1.5",     FFC_OUTCOME_OK, 1.5},
+    {"-1.5",    FFC_OUTCOME_OK, -1.5},
+    {"0.5",     FFC_OUTCOME_OK, 0.5},
+    {"1e3",     FFC_OUTCOME_OK, 1000.0},
+    {"1E3",     FFC_OUTCOME_OK, 1000.0},
+    {"1e+3",    FFC_OUTCOME_OK, 1000.0},
+    {"1e-3",    FFC_OUTCOME_OK, 0.001},
+    {"1.5e2",   FFC_OUTCOME_OK, 150.0},
+    {"-1.5e-2", FFC_OUTCOME_OK, -0.015},
+  };
+
+  // invalid stuff
+  const char * const invalid_cases[] = {
+    "",
+    "-",
+    ".5",
+    "1.",
+    "1e",
+    "1E",
+    "1e+",
+    "1e-",
+    "1.5e",
+    "01",
+    "00",
+    "-01",
+    "+1",
+  };
+
+  ffc_parse_options json_opts = ffc_parse_options_default();
+  json_opts.format = FFC_PRESET_JSON;
+
+  for (size_t i = 0; i < sizeof(ok_cases)/sizeof(*ok_cases); i++) {
+    const struct test_case *t = &ok_cases[i];
+    verify_double_ext(strlen(t->input), t->input, t->expected_value,
+                      t->expected_outcome, json_opts);
+  }
+  for (size_t i = 0; i < sizeof(invalid_cases)/sizeof(*invalid_cases); i++) {
+    verify_double_ext(strlen(invalid_cases[i]), invalid_cases[i], 0.0,
+                      FFC_OUTCOME_INVALID_INPUT, json_opts);
+  }
+}
+
 int main(void) {
   // verify_float("1.1754942807573642917e-38", 0x1.fffffcp-127f);
   // exit(0);
@@ -517,6 +573,7 @@ int main(void) {
   double_rounds_to_nearest();
   double_parse_zero();
   double_parse_negative_zero();
+  double_json_mode();
 
   float_special();
 

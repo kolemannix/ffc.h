@@ -1271,13 +1271,16 @@ ffc_parsed ffc_parse_number_string(
       ++p;
     }
     if ((p == pend) || !ffc_is_integer(*p)) {
-      if (!(uint64_t)(fmt & FFC_FORMAT_FLAG_FIXED)) {
+      if (basic_json_fmt || !(uint64_t)(fmt & FFC_FORMAT_FLAG_FIXED)) {
         // The exponential part is invalid for scientific notation, so it must
         // be a trailing token for fixed notation. However, fixed notation is
-        // disabled, so report a scientific notation error.
+        // disabled, so report a scientific notation error. JSON mode is strict
+        // for the scientific form (exp = e [ minus / plus ] 1*DIGIT in RFC
+        // 8259) so we also report the error, even though FIXED is part of
+        // FFC_PRESET_JSON.
         return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_EXPONENTIAL_PART);
       }
-      // Otherwise, we will be ignoring the 'e'.
+      // Otherwise (fixed-tolerant, non-JSON), we will be ignoring the 'e'.
       p = location_of_e;
     } else {
       while ((p != pend) && ffc_is_integer(*p)) {
