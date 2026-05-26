@@ -299,10 +299,16 @@ ffc_parsed ffc_parse_number_string(
   int64_t exponent = 0;
   bool const has_decimal_point = (p != pend) && (*p == decimal_point);
 
+  // Hoisted out of the if-block so the too_many_digits path can use them as
+  // local variables rather than reading back from the answer struct, which
+  // lets GCC DSE the answer.fraction_part_* stores on non-JSON callers.
+  char const *before = NULL;
+  char const *frac_end_local = NULL;
+
   /* post-decimal exponential part (calculates a negative exponent) */
   if (has_decimal_point) {
     ++p;
-    char const *before = p; 
+    before = p;
     // can occur at most twice without overflowing, but let it occur more, since
     // for integers with many digits, digit parsing is the primary bottleneck.
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
@@ -322,6 +328,7 @@ ffc_parsed ffc_parse_number_string(
     // i = 123456
     // digit_count = 3 - (-3) = 6
     exponent = before - p;
+    frac_end_local = p; // capture before p advances into explicit exponent
     answer.fraction_part_start = (char*)before;
     answer.fraction_part_len = (size_t)(p - before);
     digit_count -= exponent;
@@ -411,11 +418,14 @@ ffc_parsed ffc_parse_number_string(
     if (digit_count > 19) {
       answer.too_many_digits = true;
       // Let us start again, this time, avoiding overflows.
-      // We don't need to call if is_integer, since we use the
-      // pre-tokenized spans from above.
+      // Use local variables (start_digits, end_of_integer_part, before,
+      // frac_end_local) instead of reading back from answer struct fields.
+      // This allows GCC DSE to eliminate the answer.int_part_* and
+      // answer.fraction_part_* stores on non-JSON callers (where those fields
+      // are removed from the return ABI by ISRA).
       i = 0;
-      p = answer.int_part_start;
-      char const *int_end = p + answer.int_part_len;
+      p = (char*)start_digits;
+      char const *int_end = (char*)end_of_integer_part;
       uint64_t const minimal_nineteen_digit_integer = 1000000000000000000;
       while ((i < minimal_nineteen_digit_integer) && (p != int_end)) {
         i = i * 10 + (uint64_t)(*p - '0');
@@ -424,13 +434,13 @@ ffc_parsed ffc_parse_number_string(
       if (i >= minimal_nineteen_digit_integer) { // We have a big integer
         exponent = end_of_integer_part - p + exp_number;
       } else { // We have a value with a fractional component.
-        p = answer.fraction_part_start;
-        char const *frac_end = p + answer.fraction_part_len;
+        p = (char*)before;
+        char const *frac_end = (char*)frac_end_local;
         while ((i < minimal_nineteen_digit_integer) && (p != frac_end)) {
           i = i * 10 + (uint64_t)(*p - '0');
           ++p;
         }
-        exponent = answer.fraction_part_start - p + exp_number;
+        exponent = before - p + exp_number;
       }
       // We have now corrected both exponent and i, to a truncated value
     }
