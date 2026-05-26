@@ -228,8 +228,10 @@ bool ffc_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_neg
   // selected on the thread.
   // We proceed optimistically, assuming that detail::rounds_to_nearest()
   // returns true.
-  if (ffc_const(value_kind, MIN_EXPONENT_FAST_PATH) <= exponent &&
-      exponent <= ffc_const(value_kind, MAX_EXPONENT_FAST_PATH)) {
+  // Single unsigned range check replaces two signed comparisons, matching
+  // fast_float's layout: (uint64_t)(e - MIN) <= (MAX - MIN) in one compare.
+  if ((uint64_t)((int64_t)exponent - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH)) <=
+      (uint64_t)((int64_t)ffc_const(value_kind, MAX_EXPONENT_FAST_PATH) - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH))) {
     // Unfortunately, the conventional Clinger's fast path is only possible
     // when the system rounds to the nearest float.
     //
