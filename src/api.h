@@ -115,8 +115,23 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
  * `fast_float::chars_format::general` which allows both `fixed` and
  * `scientific`.
  */
-ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
+/* When included from a FFC_IMPL translation unit, the critical-path API
+ * functions are declared always_inline so GCC inlines them at call sites
+ * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern. */
+#ifdef FFC_IMPL
+#  if defined(__GNUC__) || defined(__clang__)
+#    define FFC_IMPL_INLINE __attribute__((always_inline)) inline
+#  elif defined(_MSC_VER)
+#    define FFC_IMPL_INLINE __forceinline
+#  else
+#    define FFC_IMPL_INLINE inline
+#  endif
+#else
+#  define FFC_IMPL_INLINE
+#endif
+
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
 /*
  * A simplified API; the result will be 0.0 on error, not uninitialized.

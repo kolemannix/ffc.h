@@ -368,7 +368,9 @@ ffc_result ffc_from_chars(char* first, char* last, ffc_parse_options options, ff
   return ffc_from_chars_advanced(pns, value, vk);
 }
 
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
+/* extern FFC_IMPL_INLINE gives GCC the always_inline directive while also
+ * requesting external linkage so non-FFC_IMPL TUs can link these symbols. */
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
   // It would be UB to directly use *out as our ffc_value, even though its the same layout
   ffc_value out_value = {0};
 
@@ -377,7 +379,7 @@ ffc_result ffc_from_chars_double_options(const char *start, const char *end, dou
   *out = out_value.d;
   return result;
 }
-ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_double_options(first, last, out, options);
 }
