@@ -347,6 +347,7 @@ void test_file(const char* filename, csv_row_callback_t cb, ffc_parse_options op
     csv_parser_destroy(p);
 }
 
+#ifndef FFC_ROUNDS_TO_NEAREST
 void double_rounds_to_nearest(void) {
  static volatile double fmin = DBL_MIN;
     char *s1, *s2;
@@ -381,6 +382,7 @@ void double_rounds_to_nearest(void) {
     assert(ffc_rounds_to_nearest() == true);
 #endif
 }
+#endif /* FFC_ROUNDS_TO_NEAREST */
 
 void double_parse_zero(void) {
   //
@@ -713,7 +715,9 @@ int main(void) {
   test_file("test_src/float_cases.csv", &cb_test, opts, FFC_VALUE_KIND_FLOAT);
 
   double_special();
+#ifndef FFC_ROUNDS_TO_NEAREST
   double_rounds_to_nearest();
+#endif
   double_parse_zero();
   double_parse_negative_zero();
   double_json_mode();

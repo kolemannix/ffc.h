@@ -524,6 +524,11 @@ bool ffc_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, si
 
 ffc_internal ffc_inline
 bool ffc_rounds_to_nearest(void) {
+#if defined(FFC_ROUNDS_TO_NEAREST)
+  // Compile-time constant: caller guarantees IEEE 754 round-to-nearest mode.
+  // Eliminates the volatile float FCMP chain entirely.
+  return true;
+#endif
   // https://lemire.me/blog/2020/06/26/gcc-not-nearest/
 #if (FLT_EVAL_METHOD != 1) && (FLT_EVAL_METHOD != 0)
   return false;
