@@ -270,8 +270,8 @@ ffc_parsed ffc_parse_number_string(
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
   // Straight-line integer scan — eliminates back-branches for the common
-  // 1–4 digit integer case (random "0", mesh 1–2 digits, canada 1–3 digits).
-  // Falls back to while loop for 5+ digits.
+  // 1–5 digit integer case (random "0", mesh 1–3 digits, canada 2–3 digits).
+  // Falls back to while loop for 6+ digits.
   if ((p != pend) && ffc_is_integer(*p)) {
     i = (uint64_t)(*p++ - '0');
     if ((p != pend) && ffc_is_integer(*p)) {
@@ -280,9 +280,12 @@ ffc_parsed ffc_parse_number_string(
         i = i * 10 + (uint64_t)(*p++ - '0');
         if ((p != pend) && ffc_is_integer(*p)) {
           i = i * 10 + (uint64_t)(*p++ - '0');
-          while ((p != pend) && ffc_is_integer(*p)) {
-            i = (10 * i) + (uint64_t)(*p - '0'); // might overflow, handled later
-            ++p;
+          if ((p != pend) && ffc_is_integer(*p)) {
+            i = i * 10 + (uint64_t)(*p++ - '0');
+            while ((p != pend) && ffc_is_integer(*p)) {
+              i = (10 * i) + (uint64_t)(*p - '0'); // might overflow, handled later
+              ++p;
+            }
           }
         }
       }
