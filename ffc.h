@@ -3106,11 +3106,14 @@ ffc_result ffc_from_chars_advanced(ffc_parsed const pns, ffc_value* value, ffc_v
   answer.outcome = FFC_OUTCOME_OK; // be optimistic :')
   answer.ptr = (char*)pns.lastmatch;
 
-  // Fast exit for exponent==0 (pure integers, ~55% of mesh.txt): skip Clinger's
-  // range/mantissa checks, pow10 table load, and fmul with 1.0.
-  // Safe after EXP-030: no volatile FCMP chain to delay.
   if (!pns.too_many_digits && pns.exponent == 0 &&
       pns.mantissa <= ffc_const(vk, MAX_MANTISSA_FAST_PATH)) {
+#if defined(__clang__) || defined(FFC_32BIT)
+    if (pns.mantissa == 0) {
+      ffc_set_value(value, vk, pns.negative ? -0. : 0.);
+      return answer;
+    }
+#endif
     ffc_set_value(value, vk, pns.mantissa);
     if (pns.negative) { ffc_set_value(value, vk, -ffc_read_value(value, vk)); }
     return answer;
