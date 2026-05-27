@@ -258,7 +258,7 @@ ffc_parsed ffc_parse_number_string(
       }
     } else {
       // a sign must be followed by an integer or the dot
-      if (!ffc_is_integer(*p) && (*p != decimal_point)) { 
+      if (!ffc_is_integer(*p) && (*p != decimal_point)) {
         return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
       }
     }
@@ -269,14 +269,24 @@ ffc_parsed ffc_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  while ((p != pend) && ffc_is_integer(*p)) {
-    // Horner's method: only ever multiplies by the constant 10
-    // avoiding variable power-of-10 multiplies
-
-    // might overflow, we will handle the overflow later
-    uint64_t digit_value = (uint64_t)(*p - '0');
-    i = (10 * i) + digit_value; 
-    ++p;
+  // Straight-line integer scan — eliminates back-branches for the common
+  // 1–4 digit integer case (random "0", mesh 1–2 digits, canada 1–3 digits).
+  // Falls back to while loop for 5+ digits.
+  if ((p != pend) && ffc_is_integer(*p)) {
+    i = (uint64_t)(*p++ - '0');
+    if ((p != pend) && ffc_is_integer(*p)) {
+      i = i * 10 + (uint64_t)(*p++ - '0');
+      if ((p != pend) && ffc_is_integer(*p)) {
+        i = i * 10 + (uint64_t)(*p++ - '0');
+        if ((p != pend) && ffc_is_integer(*p)) {
+          i = i * 10 + (uint64_t)(*p++ - '0');
+          while ((p != pend) && ffc_is_integer(*p)) {
+            i = (10 * i) + (uint64_t)(*p - '0'); // might overflow, handled later
+            ++p;
+          }
+        }
+      }
+    }
   }
 
   char const *const end_of_integer_part = p;
