@@ -313,10 +313,16 @@ ffc_parsed ffc_parse_number_string(
     // for integers with many digits, digit parsing is the primary bottleneck.
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
-    while ((p != pend) && ffc_is_integer(*p)) {
-      uint8_t digit = (uint8_t)(*p - (char)('0'));
-      ++p;
-      i = i * 10 + digit; // in rare cases, this will overflow, but that's ok
+    // ffc_loop_parse_if_eight_digits handles 8+4 digits, so at most 3 remain.
+    // Straight-line tail eliminates the back-branch for the common 1-3 digit case.
+    if (p != pend && ffc_is_integer(*p)) {
+      i = i * 10 + (uint8_t)(*p++ - (char)('0')); // in rare cases overflows, ok
+      if (p != pend && ffc_is_integer(*p)) {
+        i = i * 10 + (uint8_t)(*p++ - (char)('0'));
+        if (p != pend && ffc_is_integer(*p)) {
+          i = i * 10 + (uint8_t)(*p++ - (char)('0'));
+        }
+      }
     }
 
     // pre: i = 123, digit_count = 3
