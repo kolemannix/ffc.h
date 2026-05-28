@@ -180,7 +180,7 @@ ffc_digit_acc10(uint64_t acc, uint64_t d) {
   uint64_t result;
   __asm__("add %0, %2, %2, lsl #2\n\t"
           "add %0, %1, %0, lsl #1"
-          : "=r"(result) : "r"(d), "r"(acc));
+          : "=&r"(result) : "r"(d), "r"(acc));
   return result;
 }
 #define FFC_DIGIT_ACC10(acc, d_expr) ffc_digit_acc10((acc), (uint64_t)(d_expr))
