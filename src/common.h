@@ -11,12 +11,14 @@
 #define ffc_internal static
 #endif
 
+#ifndef ffc_inline
 #if defined(_MSC_VER)
   #define ffc_inline __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
   #define ffc_inline __attribute__((always_inline)) inline
 #else
   #define ffc_inline inline
+#endif
 #endif
 
 #if FFC_DEBUG
@@ -525,8 +527,10 @@ bool ffc_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, si
 ffc_internal ffc_inline
 bool ffc_rounds_to_nearest(void) {
 #if defined(FFC_ROUNDS_TO_NEAREST)
-  // Compile-time constant: caller guarantees IEEE 754 round-to-nearest mode.
-  // Eliminates the volatile float FCMP chain entirely.
+  // We're being compiled under a mode where IEEE 754 round-to-nearest mode is
+  // guaranteed.
+  // We can simply return true; this is an optimization that eliminates the
+  // volatile float FCMP chain below.
   return true;
 #endif
   // https://lemire.me/blog/2020/06/26/gcc-not-nearest/

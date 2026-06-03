@@ -127,6 +127,16 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+/* always_inline marker, defined here so FFC_IMPL_INLINE (below) can reuse it.
+ * common.h re-uses this same definition under an #ifndef guard. */
+#if defined(_MSC_VER)
+  #define ffc_inline __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+  #define ffc_inline __attribute__((always_inline)) inline
+#else
+  #define ffc_inline inline
+#endif
+
 typedef uint32_t ffc_outcome;
 enum ffc_outcome_bits {
   FFC_OUTCOME_OK = 0,
@@ -229,15 +239,11 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
  */
 /* When included from a FFC_IMPL translation unit, the critical-path API
  * functions are declared always_inline so GCC inlines them at call sites
- * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern. */
+ * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern.
+ * Under FFC_IMPL this is just ffc_inline (always_inline); the non-FFC_IMPL
+ * branch must stay empty so the symbols keep external linkage. */
 #ifdef FFC_IMPL
-#  if defined(__GNUC__) || defined(__clang__)
-#    define FFC_IMPL_INLINE __attribute__((always_inline)) inline
-#  elif defined(_MSC_VER)
-#    define FFC_IMPL_INLINE __forceinline
-#  else
-#    define FFC_IMPL_INLINE inline
-#  endif
+#  define FFC_IMPL_INLINE ffc_inline
 #else
 #  define FFC_IMPL_INLINE
 #endif
@@ -310,12 +316,14 @@ ffc_result ffc_parse_json_number(const char *start, const char *end, ffc_json_nu
 #define ffc_internal static
 #endif
 
+#ifndef ffc_inline
 #if defined(_MSC_VER)
   #define ffc_inline __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
   #define ffc_inline __attribute__((always_inline)) inline
 #else
   #define ffc_inline inline
+#endif
 #endif
 
 #if FFC_DEBUG
@@ -824,8 +832,10 @@ bool ffc_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, si
 ffc_internal ffc_inline
 bool ffc_rounds_to_nearest(void) {
 #if defined(FFC_ROUNDS_TO_NEAREST)
-  // Compile-time constant: caller guarantees IEEE 754 round-to-nearest mode.
-  // Eliminates the volatile float FCMP chain entirely.
+  // We're being compiled under a mode where IEEE 754 round-to-nearest mode is
+  // guaranteed.
+  // We can simply return true; this is an optimization that eliminates the
+  // volatile float FCMP chain below.
   return true;
 #endif
   // https://lemire.me/blog/2020/06/26/gcc-not-nearest/
@@ -1141,10 +1151,18 @@ bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_
 
 #endif // FFC_HAS_SIMD
 
-// Compute acc*10 + d_expr using add+lsl on AArch64/Clang.
-// GCC already strength-reduces i*10 to shift-adds naturally; the asm is
-// Clang-only. The non-Clang path is a plain macro so GCC sees the original
-// expression and can fuse the pointer increment with surrounding code.
+// Compute acc*10 + d_expr.
+//
+// On AArch64, Clang emits `smaddl` (3-cycle latency) for `acc*10 + d`, which
+// sits on the digit-accumulation critical path. Forcing the `add + lsl` form
+// via inline asm shortens it and is worth ~+9% on Clang/AArch64.
+//
+// The asm is intentionally narrow: it is only correct/beneficial on AArch64,
+// and *only* for Clang. GCC already strength-reduces `acc*10` to shift-adds
+// and schedules them optimally; routing GCC through this asm measurably
+// regressed it (canada -5.3%). Every other compiler therefore uses the plain
+// expression below, which is also what makes this safe to leave unconditional
+// at the call sites.
 #if defined(__aarch64__) && defined(__clang__)
 ffc_internal ffc_inline uint64_t
 ffc_digit_acc10(uint64_t acc, uint64_t d) {
@@ -1287,9 +1305,8 @@ ffc_parsed ffc_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  // Straight-line integer scan — eliminates back-branches for the common
-  // 1–5 digit integer case (random "0", mesh 1–3 digits, canada 2–3 digits).
-  // Falls back to while loop for 6+ digits.
+  // Integer scan: the first 5 digits are read straight-line, longer runs
+  // continue in the while loop. The common 1-5 digit case stays branch-light.
   if ((p != pend) && ffc_is_integer(*p)) {
     i = (uint64_t)(*p++ - '0');
     if ((p != pend) && ffc_is_integer(*p)) {
@@ -1330,9 +1347,8 @@ ffc_parsed ffc_parse_number_string(
   int64_t exponent = 0;
   bool const has_decimal_point = (p != pend) && (*p == decimal_point);
 
-  // Hoisted out of the if-block so the too_many_digits path can use them as
-  // local variables rather than reading back from the answer struct, which
-  // lets GCC DSE the answer.fraction_part_* stores on non-JSON callers.
+  // Fraction-part bounds, kept as locals so the too_many_digits re-scan below
+  // can reuse them without reloading the answer.fraction_part_* fields.
   char const *before = NULL;
   char const *frac_end_local = NULL;
 
@@ -1344,8 +1360,7 @@ ffc_parsed ffc_parse_number_string(
     // for integers with many digits, digit parsing is the primary bottleneck.
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
-    // ffc_loop_parse_if_eight_digits handles 8+4 digits, so at most 3 remain.
-    // Straight-line tail eliminates the back-branch for the common 1-3 digit case.
+    // manual unroll for the 1-3 digit case
     if (p != pend && ffc_is_integer(*p)) {
       i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0'))); // in rare cases overflows, ok
       if (p != pend && ffc_is_integer(*p)) {
@@ -1454,12 +1469,9 @@ ffc_parsed ffc_parse_number_string(
 
     if (digit_count > 19) {
       answer.too_many_digits = true;
-      // Let us start again, this time, avoiding overflows.
-      // Use local variables (start_digits, end_of_integer_part, before,
-      // frac_end_local) instead of reading back from answer struct fields.
-      // This allows GCC DSE to eliminate the answer.int_part_* and
-      // answer.fraction_part_* stores on non-JSON callers (where those fields
-      // are removed from the return ABI by ISRA).
+      // Re-scan the digits into i, this time stopping before overflow. Reads
+      // from the local digit-range pointers (start_digits, end_of_integer_part,
+      // before, frac_end_local) rather than the answer struct fields.
       i = 0;
       p = (char*)start_digits;
       char const *int_end = (char*)end_of_integer_part;
