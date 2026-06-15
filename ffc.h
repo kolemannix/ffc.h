@@ -1121,17 +1121,64 @@ bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_
 
 #endif // FFC_HAS_SIMD
 
+// Compute acc*10 + d_expr using add+lsl on AArch64/Clang.
+// GCC already strength-reduces i*10 to shift-adds naturally; the asm is
+// Clang-only. The non-Clang path is a plain macro so GCC sees the original
+// expression and can fuse the pointer increment with surrounding code.
+#if defined(__aarch64__) && defined(__clang__)
+ffc_internal ffc_inline uint64_t
+ffc_digit_acc10(uint64_t acc, uint64_t d) {
+  uint64_t result;
+  __asm__("add %0, %2, %2, lsl #2\n\t"
+          "add %0, %1, %0, lsl #1"
+          : "=&r"(result) : "r"(d), "r"(acc));
+  return result;
+}
+#define FFC_DIGIT_ACC10(acc, d_expr) ffc_digit_acc10((acc), (uint64_t)(d_expr))
+#else
+#define FFC_DIGIT_ACC10(acc, d_expr) ((acc) * 10 + (uint64_t)(d_expr))
+#endif
+
 ffc_internal ffc_inline void
 ffc_loop_parse_if_eight_digits(char const **p, char const *const pend,
                            uint64_t* i) {
-  // optimizes better than parse_if_eight_digits_unrolled() for char.
+#if defined(__aarch64__) && defined(__clang__)
+  // Clang/AArch64: manual 2x unroll converts the hot path from a while loop
+  // to a single linear block for typical float fractions (<=16 digits).
+  // Eliminating the back-edge allows Clang to keep SWAR constants in registers
+  // rather than rematerializing them on each iteration; also, the 8-digit
+  // block becomes an if (no back-edge) so constants are always in a straight-
+  // line context. GCC auto-unrolls this naturally so we keep its while loop.
+  while (pend - *p >= 16) {
+    uint64_t val1 = ffc_read8_to_u64(*p);
+    if (!ffc_is_made_of_eight_digits_fast(val1)) { break; }
+    uint64_t val2 = ffc_read8_to_u64(*p + 8);
+    if (!ffc_is_made_of_eight_digits_fast(val2)) {
+      *i = (*i * 100000000) + ffc_parse_eight_digits_unrolled_swar(val1); // in rare cases overflows, ok
+      *p += 8;
+      break;
+    }
+    uint64_t s1 = ffc_parse_eight_digits_unrolled_swar(val1);
+    uint64_t s2 = ffc_parse_eight_digits_unrolled_swar(val2);
+    *i = (*i * 100000000ULL + s1) * 100000000ULL + s2; // in rare cases overflows, ok
+    *p += 16;
+  }
+  if (pend - *p >= 8) {
+    uint64_t val = ffc_read8_to_u64(*p);
+    if (ffc_is_made_of_eight_digits_fast(val)) {
+      *i = (*i * 100000000) + ffc_parse_eight_digits_unrolled_swar(val); // in rare cases overflows, ok
+      *p += 8;
+    }
+  }
+#else
+  // GCC and other compilers: original while loop that GCC auto-unrolls well.
   while (pend - *p >= 8) {
     uint64_t val = ffc_read8_to_u64(*p);
     if (!ffc_is_made_of_eight_digits_fast(val)) { break; }
-    *i = (*i * 100000000) + ffc_parse_eight_digits_unrolled_swar(val);
-        // in rare cases, this will overflow, but that's ok
+    *i = (*i * 100000000) + ffc_parse_eight_digits_unrolled_swar(val); // in rare cases, this will overflow, but that's ok
     *p += 8;
   }
+#endif
   // 4-digit follow-up: handles sub-8 remainders (e.g. 7-digit fractions)
   // without falling all the way to byte-by-byte for the first 4 digits.
   if (pend - *p >= 4) {
@@ -1225,8 +1272,7 @@ ffc_parsed ffc_parse_number_string(
     // avoiding variable power-of-10 multiplies
 
     // might overflow, we will handle the overflow later
-    uint64_t digit_value = (uint64_t)(*p - '0');
-    i = (10 * i) + digit_value; 
+    i = FFC_DIGIT_ACC10(i, *p - '0');
     ++p;
   }
 
@@ -1259,9 +1305,7 @@ ffc_parsed ffc_parse_number_string(
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
     while ((p != pend) && ffc_is_integer(*p)) {
-      uint8_t digit = (uint8_t)(*p - (char)('0'));
-      ++p;
-      i = i * 10 + digit; // in rare cases, this will overflow, but that's ok
+      i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0'))); // in rare cases overflows, ok
     }
 
     // pre: i = 123, digit_count = 3
@@ -1321,7 +1365,7 @@ ffc_parsed ffc_parse_number_string(
       while ((p != pend) && ffc_is_integer(*p)) {
         uint8_t digit = (uint8_t)(*p - '0');
         if (exp_number < 0x10000000) {
-          exp_number = 10 * exp_number + digit;
+          exp_number = FFC_DIGIT_ACC10(exp_number, digit);
         }
         ++p;
       }
