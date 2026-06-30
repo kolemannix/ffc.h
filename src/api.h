@@ -15,6 +15,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* always_inline marker, defined here so FFC_IMPL_INLINE (below) can reuse it.
+ * common.h re-uses this same definition under an #ifndef guard. */
+#if defined(_MSC_VER)
+  #define ffc_inline __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+  #define ffc_inline __attribute__((always_inline)) inline
+#else
+  #define ffc_inline inline
+#endif
+
 typedef uint32_t ffc_outcome;
 enum ffc_outcome_bits {
   FFC_OUTCOME_OK = 0,
@@ -115,8 +125,19 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
  * `fast_float::chars_format::general` which allows both `fixed` and
  * `scientific`.
  */
-ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
+/* When included from a FFC_IMPL translation unit, the critical-path API
+ * functions are declared always_inline so GCC inlines them at call sites
+ * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern.
+ * Under FFC_IMPL this is just ffc_inline (always_inline); the non-FFC_IMPL
+ * branch must stay empty so the symbols keep external linkage. */
+#ifdef FFC_IMPL
+#  define FFC_IMPL_INLINE ffc_inline
+#else
+#  define FFC_IMPL_INLINE
+#endif
+
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
 /*
  * A simplified API; the result will be 0.0 on error, not uninitialized.

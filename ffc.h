@@ -127,6 +127,16 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+/* always_inline marker, defined here so FFC_IMPL_INLINE (below) can reuse it.
+ * common.h re-uses this same definition under an #ifndef guard. */
+#if defined(_MSC_VER)
+  #define ffc_inline __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+  #define ffc_inline __attribute__((always_inline)) inline
+#else
+  #define ffc_inline inline
+#endif
+
 typedef uint32_t ffc_outcome;
 enum ffc_outcome_bits {
   FFC_OUTCOME_OK = 0,
@@ -227,8 +237,19 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
  * `fast_float::chars_format::general` which allows both `fixed` and
  * `scientific`.
  */
-ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
+/* When included from a FFC_IMPL translation unit, the critical-path API
+ * functions are declared always_inline so GCC inlines them at call sites
+ * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern.
+ * Under FFC_IMPL this is just ffc_inline (always_inline); the non-FFC_IMPL
+ * branch must stay empty so the symbols keep external linkage. */
+#ifdef FFC_IMPL
+#  define FFC_IMPL_INLINE ffc_inline
+#else
+#  define FFC_IMPL_INLINE
+#endif
+
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
+FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
 /*
  * A simplified API; the result will be 0.0 on error, not uninitialized.
@@ -295,12 +316,14 @@ ffc_result ffc_parse_json_number(const char *start, const char *end, ffc_json_nu
 #define ffc_internal static
 #endif
 
+#ifndef ffc_inline
 #if defined(_MSC_VER)
   #define ffc_inline __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
   #define ffc_inline __attribute__((always_inline)) inline
 #else
   #define ffc_inline inline
+#endif
 #endif
 
 #if FFC_DEBUG
@@ -808,6 +831,13 @@ bool ffc_strncasecmp5(char *actual_mixedcase, char const *expected_lowercase, si
 
 ffc_internal ffc_inline
 bool ffc_rounds_to_nearest(void) {
+#if defined(FFC_ROUNDS_TO_NEAREST)
+  // We're being compiled under a mode where IEEE 754 round-to-nearest mode is
+  // guaranteed.
+  // We can simply return true; this is an optimization that eliminates the
+  // volatile float FCMP chain below.
+  return true;
+#endif
   // https://lemire.me/blog/2020/06/26/gcc-not-nearest/
 #if (FLT_EVAL_METHOD != 1) && (FLT_EVAL_METHOD != 0)
   return false;
@@ -1121,10 +1151,18 @@ bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_
 
 #endif // FFC_HAS_SIMD
 
-// Compute acc*10 + d_expr using add+lsl on AArch64/Clang.
-// GCC already strength-reduces i*10 to shift-adds naturally; the asm is
-// Clang-only. The non-Clang path is a plain macro so GCC sees the original
-// expression and can fuse the pointer increment with surrounding code.
+// Compute acc*10 + d_expr.
+//
+// On AArch64, Clang emits `smaddl` (3-cycle latency) for `acc*10 + d`, which
+// sits on the digit-accumulation critical path. Forcing the `add + lsl` form
+// via inline asm shortens it and is worth ~+9% on Clang/AArch64.
+//
+// The asm is intentionally narrow: it is only correct/beneficial on AArch64,
+// and *only* for Clang. GCC already strength-reduces `acc*10` to shift-adds
+// and schedules them optimally; routing GCC through this asm measurably
+// regressed it (canada -5.3%). Every other compiler therefore uses the plain
+// expression below, which is also what makes this safe to leave unconditional
+// at the call sites.
 #if defined(__aarch64__) && defined(__clang__)
 ffc_internal ffc_inline uint64_t
 ffc_digit_acc10(uint64_t acc, uint64_t d) {
@@ -1256,7 +1294,7 @@ ffc_parsed ffc_parse_number_string(
       }
     } else {
       // a sign must be followed by an integer or the dot
-      if (!ffc_is_integer(*p) && (*p != decimal_point)) { 
+      if (!ffc_is_integer(*p) && (*p != decimal_point)) {
         return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
       }
     }
@@ -1267,13 +1305,26 @@ ffc_parsed ffc_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  while ((p != pend) && ffc_is_integer(*p)) {
-    // Horner's method: only ever multiplies by the constant 10
-    // avoiding variable power-of-10 multiplies
-
-    // might overflow, we will handle the overflow later
-    i = FFC_DIGIT_ACC10(i, *p - '0');
-    ++p;
+  // Integer scan: the first 5 digits are read straight-line, longer runs
+  // continue in the while loop. The common 1-5 digit case stays branch-light.
+  if ((p != pend) && ffc_is_integer(*p)) {
+    i = (uint64_t)(*p++ - '0');
+    if ((p != pend) && ffc_is_integer(*p)) {
+      i = FFC_DIGIT_ACC10(i, *p++ - '0');
+      if ((p != pend) && ffc_is_integer(*p)) {
+        i = FFC_DIGIT_ACC10(i, *p++ - '0');
+        if ((p != pend) && ffc_is_integer(*p)) {
+          i = FFC_DIGIT_ACC10(i, *p++ - '0');
+          if ((p != pend) && ffc_is_integer(*p)) {
+            i = FFC_DIGIT_ACC10(i, *p++ - '0');
+            while ((p != pend) && ffc_is_integer(*p)) {
+              i = FFC_DIGIT_ACC10(i, *p - '0'); // might overflow, handled later
+              ++p;
+            }
+          }
+        }
+      }
+    }
   }
 
   char const *const end_of_integer_part = p;
@@ -1296,16 +1347,28 @@ ffc_parsed ffc_parse_number_string(
   int64_t exponent = 0;
   bool const has_decimal_point = (p != pend) && (*p == decimal_point);
 
+  // Fraction-part bounds, kept as locals so the too_many_digits re-scan below
+  // can reuse them without reloading the answer.fraction_part_* fields.
+  char const *before = NULL;
+  char const *frac_end_local = NULL;
+
   /* post-decimal exponential part (calculates a negative exponent) */
   if (has_decimal_point) {
     ++p;
-    char const *before = p; 
+    before = p;
     // can occur at most twice without overflowing, but let it occur more, since
     // for integers with many digits, digit parsing is the primary bottleneck.
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
-    while ((p != pend) && ffc_is_integer(*p)) {
+    // manual unroll for the 1-3 digit case
+    if (p != pend && ffc_is_integer(*p)) {
       i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0'))); // in rare cases overflows, ok
+      if (p != pend && ffc_is_integer(*p)) {
+        i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0')));
+        if (p != pend && ffc_is_integer(*p)) {
+          i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0')));
+        }
+      }
     }
 
     // pre: i = 123, digit_count = 3
@@ -1317,6 +1380,7 @@ ffc_parsed ffc_parse_number_string(
     // i = 123456
     // digit_count = 3 - (-3) = 6
     exponent = before - p;
+    frac_end_local = p; // capture before p advances into explicit exponent
     answer.fraction_part_start = (char*)before;
     answer.fraction_part_len = (size_t)(p - before);
     digit_count -= exponent;
@@ -1405,12 +1469,12 @@ ffc_parsed ffc_parse_number_string(
 
     if (digit_count > 19) {
       answer.too_many_digits = true;
-      // Let us start again, this time, avoiding overflows.
-      // We don't need to call if is_integer, since we use the
-      // pre-tokenized spans from above.
+      // Re-scan the digits into i, this time stopping before overflow. Reads
+      // from the local digit-range pointers (start_digits, end_of_integer_part,
+      // before, frac_end_local) rather than the answer struct fields.
       i = 0;
-      p = answer.int_part_start;
-      char const *int_end = p + answer.int_part_len;
+      p = (char*)start_digits;
+      char const *int_end = (char*)end_of_integer_part;
       uint64_t const minimal_nineteen_digit_integer = 1000000000000000000;
       while ((i < minimal_nineteen_digit_integer) && (p != int_end)) {
         i = i * 10 + (uint64_t)(*p - '0');
@@ -1419,13 +1483,13 @@ ffc_parsed ffc_parse_number_string(
       if (i >= minimal_nineteen_digit_integer) { // We have a big integer
         exponent = end_of_integer_part - p + exp_number;
       } else { // We have a value with a fractional component.
-        p = answer.fraction_part_start;
-        char const *frac_end = p + answer.fraction_part_len;
+        p = (char*)before;
+        char const *frac_end = (char*)frac_end_local;
         while ((i < minimal_nineteen_digit_integer) && (p != frac_end)) {
           i = i * 10 + (uint64_t)(*p - '0');
           ++p;
         }
-        exponent = answer.fraction_part_start - p + exp_number;
+        exponent = before - p + exp_number;
       }
       // We have now corrected both exponent and i, to a truncated value
     }
@@ -3031,8 +3095,10 @@ bool ffc_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_neg
   // selected on the thread.
   // We proceed optimistically, assuming that detail::rounds_to_nearest()
   // returns true.
-  if (ffc_const(value_kind, MIN_EXPONENT_FAST_PATH) <= exponent &&
-      exponent <= ffc_const(value_kind, MAX_EXPONENT_FAST_PATH)) {
+  // Single unsigned range check replaces two signed comparisons, matching
+  // fast_float's layout: (uint64_t)(e - MIN) <= (MAX - MIN) in one compare.
+  if ((uint64_t)((int64_t)exponent - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH)) <=
+      (uint64_t)((int64_t)ffc_const(value_kind, MAX_EXPONENT_FAST_PATH) - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH))) {
     // Unfortunately, the conventional Clinger's fast path is only possible
     // when the system rounds to the nearest float.
     //
@@ -3098,6 +3164,19 @@ ffc_result ffc_from_chars_advanced(ffc_parsed const pns, ffc_value* value, ffc_v
 
   answer.outcome = FFC_OUTCOME_OK; // be optimistic :')
   answer.ptr = (char*)pns.lastmatch;
+
+  if (!pns.too_many_digits && pns.exponent == 0 &&
+      pns.mantissa <= ffc_const(vk, MAX_MANTISSA_FAST_PATH)) {
+#if defined(__clang__) || defined(FFC_32BIT)
+    if (pns.mantissa == 0) {
+      ffc_set_value(value, vk, pns.negative ? -0. : 0.);
+      return answer;
+    }
+#endif
+    ffc_set_value(value, vk, pns.mantissa);
+    if (pns.negative) { ffc_set_value(value, vk, -ffc_read_value(value, vk)); }
+    return answer;
+  }
 
   if (!pns.too_many_digits &&
       ffc_clinger_fast_path_impl(pns.mantissa, pns.exponent, pns.negative, value, vk)) {
@@ -3171,7 +3250,9 @@ ffc_result ffc_from_chars(char* first, char* last, ffc_parse_options options, ff
   return ffc_from_chars_advanced(pns, value, vk);
 }
 
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
+/* extern FFC_IMPL_INLINE gives GCC the always_inline directive while also
+ * requesting external linkage so non-FFC_IMPL TUs can link these symbols. */
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
   // It would be UB to directly use *out as our ffc_value, even though its the same layout
   ffc_value out_value = {0};
 
@@ -3180,7 +3261,7 @@ ffc_result ffc_from_chars_double_options(const char *start, const char *end, dou
   *out = out_value.d;
   return result;
 }
-ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_double_options(first, last, out, options);
 }

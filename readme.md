@@ -30,6 +30,17 @@ int main(void) {
 For use within a larger parser, where you don't expect to reach the end of input, use
 the non-simple variants as the `ffc_result` includes the stopping point, just like in fast_float
 
+## Configuration Macros
+
+Define these before including `ffc.h` to control compilation:
+
+- `FFC_IMPL` — Include the implementation (define in exactly one translation unit).
+- `FFC_ROUNDS_TO_NEAREST` — Assert at compile time that the floating-point
+  environment uses IEEE 754 round-to-nearest mode (the default on virtually all
+  platforms). When defined, the runtime rounding-mode check is elided, removing a
+  volatile-load/FCMP chain from the fast path. Only define this if you never change
+  the rounding mode (e.g. via `fesetround`) before parsing.
+
 ## API
 
 ### Float Parsing

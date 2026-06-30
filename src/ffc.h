@@ -228,8 +228,10 @@ bool ffc_clinger_fast_path_impl(uint64_t mantissa, int64_t exponent, bool is_neg
   // selected on the thread.
   // We proceed optimistically, assuming that detail::rounds_to_nearest()
   // returns true.
-  if (ffc_const(value_kind, MIN_EXPONENT_FAST_PATH) <= exponent &&
-      exponent <= ffc_const(value_kind, MAX_EXPONENT_FAST_PATH)) {
+  // Single unsigned range check replaces two signed comparisons, matching
+  // fast_float's layout: (uint64_t)(e - MIN) <= (MAX - MIN) in one compare.
+  if ((uint64_t)((int64_t)exponent - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH)) <=
+      (uint64_t)((int64_t)ffc_const(value_kind, MAX_EXPONENT_FAST_PATH) - (int64_t)ffc_const(value_kind, MIN_EXPONENT_FAST_PATH))) {
     // Unfortunately, the conventional Clinger's fast path is only possible
     // when the system rounds to the nearest float.
     //
@@ -295,6 +297,19 @@ ffc_result ffc_from_chars_advanced(ffc_parsed const pns, ffc_value* value, ffc_v
 
   answer.outcome = FFC_OUTCOME_OK; // be optimistic :')
   answer.ptr = (char*)pns.lastmatch;
+
+  if (!pns.too_many_digits && pns.exponent == 0 &&
+      pns.mantissa <= ffc_const(vk, MAX_MANTISSA_FAST_PATH)) {
+#if defined(__clang__) || defined(FFC_32BIT)
+    if (pns.mantissa == 0) {
+      ffc_set_value(value, vk, pns.negative ? -0. : 0.);
+      return answer;
+    }
+#endif
+    ffc_set_value(value, vk, pns.mantissa);
+    if (pns.negative) { ffc_set_value(value, vk, -ffc_read_value(value, vk)); }
+    return answer;
+  }
 
   if (!pns.too_many_digits &&
       ffc_clinger_fast_path_impl(pns.mantissa, pns.exponent, pns.negative, value, vk)) {
@@ -368,7 +383,9 @@ ffc_result ffc_from_chars(char* first, char* last, ffc_parse_options options, ff
   return ffc_from_chars_advanced(pns, value, vk);
 }
 
-ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
+/* extern FFC_IMPL_INLINE gives GCC the always_inline directive while also
+ * requesting external linkage so non-FFC_IMPL TUs can link these symbols. */
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
   // It would be UB to directly use *out as our ffc_value, even though its the same layout
   ffc_value out_value = {0};
 
@@ -377,7 +394,7 @@ ffc_result ffc_from_chars_double_options(const char *start, const char *end, dou
   *out = out_value.d;
   return result;
 }
-ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
+extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_double_options(first, last, out, options);
 }

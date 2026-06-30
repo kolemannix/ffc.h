@@ -170,10 +170,18 @@ bool ffc_simd_parse_if_eight_digits_unrolled_simd(uint16_t const *chars, uint64_
 
 #endif // FFC_HAS_SIMD
 
-// Compute acc*10 + d_expr using add+lsl on AArch64/Clang.
-// GCC already strength-reduces i*10 to shift-adds naturally; the asm is
-// Clang-only. The non-Clang path is a plain macro so GCC sees the original
-// expression and can fuse the pointer increment with surrounding code.
+// Compute acc*10 + d_expr.
+//
+// On AArch64, Clang emits `smaddl` (3-cycle latency) for `acc*10 + d`, which
+// sits on the digit-accumulation critical path. Forcing the `add + lsl` form
+// via inline asm shortens it and is worth ~+9% on Clang/AArch64.
+//
+// The asm is intentionally narrow: it is only correct/beneficial on AArch64,
+// and *only* for Clang. GCC already strength-reduces `acc*10` to shift-adds
+// and schedules them optimally; routing GCC through this asm measurably
+// regressed it (canada -5.3%). Every other compiler therefore uses the plain
+// expression below, which is also what makes this safe to leave unconditional
+// at the call sites.
 #if defined(__aarch64__) && defined(__clang__)
 ffc_internal ffc_inline uint64_t
 ffc_digit_acc10(uint64_t acc, uint64_t d) {
@@ -305,7 +313,7 @@ ffc_parsed ffc_parse_number_string(
       }
     } else {
       // a sign must be followed by an integer or the dot
-      if (!ffc_is_integer(*p) && (*p != decimal_point)) { 
+      if (!ffc_is_integer(*p) && (*p != decimal_point)) {
         return ffc_report_parse_error(p, FFC_PARSE_OUTCOME_MISSING_INTEGER_OR_DOT_AFTER_SIGN);
       }
     }
@@ -316,13 +324,26 @@ ffc_parsed ffc_parse_number_string(
 
   uint64_t i = 0; // an unsigned int avoids signed overflows (which are bad)
 
-  while ((p != pend) && ffc_is_integer(*p)) {
-    // Horner's method: only ever multiplies by the constant 10
-    // avoiding variable power-of-10 multiplies
-
-    // might overflow, we will handle the overflow later
-    i = FFC_DIGIT_ACC10(i, *p - '0');
-    ++p;
+  // Integer scan: the first 5 digits are read straight-line, longer runs
+  // continue in the while loop. The common 1-5 digit case stays branch-light.
+  if ((p != pend) && ffc_is_integer(*p)) {
+    i = (uint64_t)(*p++ - '0');
+    if ((p != pend) && ffc_is_integer(*p)) {
+      i = FFC_DIGIT_ACC10(i, *p++ - '0');
+      if ((p != pend) && ffc_is_integer(*p)) {
+        i = FFC_DIGIT_ACC10(i, *p++ - '0');
+        if ((p != pend) && ffc_is_integer(*p)) {
+          i = FFC_DIGIT_ACC10(i, *p++ - '0');
+          if ((p != pend) && ffc_is_integer(*p)) {
+            i = FFC_DIGIT_ACC10(i, *p++ - '0');
+            while ((p != pend) && ffc_is_integer(*p)) {
+              i = FFC_DIGIT_ACC10(i, *p - '0'); // might overflow, handled later
+              ++p;
+            }
+          }
+        }
+      }
+    }
   }
 
   char const *const end_of_integer_part = p;
@@ -345,16 +366,28 @@ ffc_parsed ffc_parse_number_string(
   int64_t exponent = 0;
   bool const has_decimal_point = (p != pend) && (*p == decimal_point);
 
+  // Fraction-part bounds, kept as locals so the too_many_digits re-scan below
+  // can reuse them without reloading the answer.fraction_part_* fields.
+  char const *before = NULL;
+  char const *frac_end_local = NULL;
+
   /* post-decimal exponential part (calculates a negative exponent) */
   if (has_decimal_point) {
     ++p;
-    char const *before = p; 
+    before = p;
     // can occur at most twice without overflowing, but let it occur more, since
     // for integers with many digits, digit parsing is the primary bottleneck.
     ffc_loop_parse_if_eight_digits(&p, pend, &i);
 
-    while ((p != pend) && ffc_is_integer(*p)) {
+    // manual unroll for the 1-3 digit case
+    if (p != pend && ffc_is_integer(*p)) {
       i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0'))); // in rare cases overflows, ok
+      if (p != pend && ffc_is_integer(*p)) {
+        i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0')));
+        if (p != pend && ffc_is_integer(*p)) {
+          i = FFC_DIGIT_ACC10(i, (uint8_t)(*p++ - (char)('0')));
+        }
+      }
     }
 
     // pre: i = 123, digit_count = 3
@@ -366,6 +399,7 @@ ffc_parsed ffc_parse_number_string(
     // i = 123456
     // digit_count = 3 - (-3) = 6
     exponent = before - p;
+    frac_end_local = p; // capture before p advances into explicit exponent
     answer.fraction_part_start = (char*)before;
     answer.fraction_part_len = (size_t)(p - before);
     digit_count -= exponent;
@@ -454,12 +488,12 @@ ffc_parsed ffc_parse_number_string(
 
     if (digit_count > 19) {
       answer.too_many_digits = true;
-      // Let us start again, this time, avoiding overflows.
-      // We don't need to call if is_integer, since we use the
-      // pre-tokenized spans from above.
+      // Re-scan the digits into i, this time stopping before overflow. Reads
+      // from the local digit-range pointers (start_digits, end_of_integer_part,
+      // before, frac_end_local) rather than the answer struct fields.
       i = 0;
-      p = answer.int_part_start;
-      char const *int_end = p + answer.int_part_len;
+      p = (char*)start_digits;
+      char const *int_end = (char*)end_of_integer_part;
       uint64_t const minimal_nineteen_digit_integer = 1000000000000000000;
       while ((i < minimal_nineteen_digit_integer) && (p != int_end)) {
         i = i * 10 + (uint64_t)(*p - '0');
@@ -468,13 +502,13 @@ ffc_parsed ffc_parse_number_string(
       if (i >= minimal_nineteen_digit_integer) { // We have a big integer
         exponent = end_of_integer_part - p + exp_number;
       } else { // We have a value with a fractional component.
-        p = answer.fraction_part_start;
-        char const *frac_end = p + answer.fraction_part_len;
+        p = (char*)before;
+        char const *frac_end = (char*)frac_end_local;
         while ((i < minimal_nineteen_digit_integer) && (p != frac_end)) {
           i = i * 10 + (uint64_t)(*p - '0');
           ++p;
         }
-        exponent = answer.fraction_part_start - p + exp_number;
+        exponent = before - p + exp_number;
       }
       // We have now corrected both exponent and i, to a truncated value
     }
