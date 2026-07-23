@@ -1,7 +1,10 @@
 ## ffc.h
 A direct and faithful c99 single-header port of Daniel Lemire's fast_float library.
 
-See [fast_float](https://github.com/fastfloat/fast_float) for much more information on the algorithm and other
+Used by [valkey](https://github.com/valkey-io/valkey/blob/f4dc3ca09eb650c2fe14060090a41c524eca803f/src/valkey_strtod.h#L7) and [hiredis](https://github.com/redis/hiredis/pull/1328)
+
+
+See the original [fast_float](https://github.com/fastfloat/fast_float) for much more information on the origin of the algorithm and other
 characteristics of the approach.
 
 Example
