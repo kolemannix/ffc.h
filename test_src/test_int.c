@@ -74,6 +74,118 @@ static void verify_u64(const char *input, uint64_t expected, int base) {
   }
 }
 
+static void verify_i32_options(const char *input, int32_t expected, int base, ffc_parse_options options) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  int32_t out = 0;
+  ffc_result r = ffc_from_chars_i32_options(input, pend, base, &out, options);
+  if (r.outcome != FFC_OUTCOME_OK) {
+    fprintf(stderr, "FAIL i32 options parse \"%s\" base %d: unexpected outcome %d\n",
+            input, base, r.outcome);
+    FAILS++;
+  } else if (out != expected) {
+    fprintf(stderr, "FAIL i32 options \"%s\" base %d: got %d, expected %d\n",
+            input, base, (int)out, (int)expected);
+    FAILS++;
+  }
+}
+
+static void verify_u32_options(const char *input, uint32_t expected, int base, ffc_parse_options options) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  uint32_t out = 0;
+  ffc_result r = ffc_from_chars_u32_options(input, pend, base, &out, options);
+  if (r.outcome != FFC_OUTCOME_OK) {
+    fprintf(stderr, "FAIL u32 options parse \"%s\" base %d: unexpected outcome %d\n",
+            input, base, r.outcome);
+    FAILS++;
+  } else if (out != expected) {
+    fprintf(stderr, "FAIL u32 options \"%s\" base %d: got %u, expected %u\n",
+            input, base, (unsigned)out, (unsigned)expected);
+    FAILS++;
+  }
+}
+
+static void verify_i64_options(const char *input, int64_t expected, int base, ffc_parse_options options) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  int64_t out = 0;
+  ffc_result r = ffc_from_chars_i64_options(input, pend, base, &out, options);
+  if (r.outcome != FFC_OUTCOME_OK) {
+    fprintf(stderr, "FAIL i64 options parse \"%s\" base %d: unexpected outcome %d\n",
+            input, base, r.outcome);
+    FAILS++;
+  } else if (out != expected) {
+    fprintf(stderr, "FAIL i64 options \"%s\" base %d: got %lld, expected %lld\n",
+            input, base, (long long)out, (long long)expected);
+    FAILS++;
+  }
+}
+
+static void verify_u64_options(const char *input, uint64_t expected, int base, ffc_parse_options options) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  uint64_t out = 0;
+  ffc_result r = ffc_from_chars_u64_options(input, pend, base, &out, options);
+  if (r.outcome != FFC_OUTCOME_OK) {
+    fprintf(stderr, "FAIL u64 options parse \"%s\" base %d: unexpected outcome %d\n",
+            input, base, r.outcome);
+    FAILS++;
+  } else if (out != expected) {
+    fprintf(stderr, "FAIL u64 options \"%s\" base %d: got %llu, expected %llu\n",
+            input, base, (unsigned long long)out, (unsigned long long)expected);
+    FAILS++;
+  }
+}
+
+static void expect_outcome_i32_options(const char *input, int base, ffc_parse_options options, ffc_outcome expected_outcome) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  int32_t out = 0;
+  ffc_result r = ffc_from_chars_i32_options(input, pend, base, &out, options);
+  if (r.outcome != expected_outcome) {
+    fprintf(stderr, "FAIL i32 options \"%s\" base %d: got outcome %d, expected %d\n",
+            input, base, r.outcome, expected_outcome);
+    FAILS++;
+  }
+}
+
+static void expect_outcome_u32_options(const char *input, int base, ffc_parse_options options, ffc_outcome expected_outcome) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  uint32_t out = 0;
+  ffc_result r = ffc_from_chars_u32_options(input, pend, base, &out, options);
+  if (r.outcome != expected_outcome) {
+    fprintf(stderr, "FAIL u32 options \"%s\" base %d: got outcome %d, expected %d\n",
+            input, base, r.outcome, expected_outcome);
+    FAILS++;
+  }
+}
+
+static void expect_outcome_i64_options(const char *input, int base, ffc_parse_options options, ffc_outcome expected_outcome) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  int64_t out = 0;
+  ffc_result r = ffc_from_chars_i64_options(input, pend, base, &out, options);
+  if (r.outcome != expected_outcome) {
+    fprintf(stderr, "FAIL i64 options \"%s\" base %d: got outcome %d, expected %d\n",
+            input, base, r.outcome, expected_outcome);
+    FAILS++;
+  }
+}
+
+static void expect_outcome_u64_options(const char *input, int base, ffc_parse_options options, ffc_outcome expected_outcome) {
+  size_t len = strlen(input);
+  char* pend = (char*)(input + len);
+  uint64_t out = 0;
+  ffc_result r = ffc_from_chars_u64_options(input, pend, base, &out, options);
+  if (r.outcome != expected_outcome) {
+    fprintf(stderr, "FAIL u64 options \"%s\" base %d: got outcome %d, expected %d\n",
+            input, base, r.outcome, expected_outcome);
+    FAILS++;
+  }
+}
+
 static void expect_outcome_i32(const char *input, int base, ffc_outcome expected_outcome) {
   size_t len = strlen(input);
   int32_t out = 0;
@@ -192,6 +304,150 @@ static void test_u64_invalid(void) {
   const char *cases[] = { "text", "text with 1002", "+50", " 50", "-50" };
   for (size_t i = 0; i < sizeof(cases)/sizeof(*cases); i++)
     expect_outcome_u64(cases[i], 10, FFC_OUTCOME_INVALID_INPUT);
+}
+
+/* -- parse options ------------------------------------------------- */
+
+static void test_i32_options(void) {
+  ffc_parse_options options = ffc_parse_options_default();
+  options.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  options.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_i32_options("+50", 50, 10, options);
+  verify_i32_options(" 50", 50, 10, options);
+  verify_i32_options("-50", -50, 10, options);
+  verify_i32_options("   +50", 50, 10, options);
+  verify_i32_options("   -50", -50, 10, options);
+  verify_i32_options("+1f", 31, 16, options);
+
+  // Individual flags and negative expectations
+  ffc_parse_options plus_only = ffc_parse_options_default();
+  plus_only.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  verify_i32_options("+50", 50, 10, plus_only);
+  expect_outcome_i32_options(" 50", 10, plus_only, FFC_OUTCOME_INVALID_INPUT);
+
+  ffc_parse_options space_only = ffc_parse_options_default();
+  space_only.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_i32_options(" 50", 50, 10, space_only);
+  expect_outcome_i32_options("+50", 10, space_only, FFC_OUTCOME_INVALID_INPUT);
+
+  // Default options reject '+' and leading space
+  ffc_parse_options none = ffc_parse_options_default();
+  expect_outcome_i32_options("+50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i32_options(" 50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+
+  // Missing digits and invalid bases
+  expect_outcome_i32_options("+", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i32_options("   ", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i32_options("50", 1, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i32_options("50", 37, options, FFC_OUTCOME_INVALID_INPUT);
+
+  // Overflow with options
+  expect_outcome_i32_options("+2147483648", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
+  expect_outcome_i32_options("   -2147483649", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
+}
+
+static void test_u32_options(void) {
+  ffc_parse_options options = ffc_parse_options_default();
+  options.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  options.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_u32_options("+50", 50, 10, options);
+  verify_u32_options(" 50", 50, 10, options);
+  verify_u32_options("   +50", 50, 10, options);
+  verify_u32_options("+1f", 31, 16, options);
+
+  // Unsigned must reject negative signs even with options
+  expect_outcome_u32_options("-50", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u32_options("   -50", 10, options, FFC_OUTCOME_INVALID_INPUT);
+
+  // Individual flags and negative expectations
+  ffc_parse_options plus_only = ffc_parse_options_default();
+  plus_only.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  verify_u32_options("+50", 50, 10, plus_only);
+  expect_outcome_u32_options(" 50", 10, plus_only, FFC_OUTCOME_INVALID_INPUT);
+
+  ffc_parse_options space_only = ffc_parse_options_default();
+  space_only.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_u32_options(" 50", 50, 10, space_only);
+  expect_outcome_u32_options("+50", 10, space_only, FFC_OUTCOME_INVALID_INPUT);
+
+  // Default options reject '+' and space
+  ffc_parse_options none = ffc_parse_options_default();
+  expect_outcome_u32_options("+50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u32_options(" 50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+
+  // Missing digits and overflow
+  expect_outcome_u32_options("+", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u32_options("   ", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u32_options("+4294967296", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
+}
+
+static void test_i64_options(void) {
+  ffc_parse_options options = ffc_parse_options_default();
+  options.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  options.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_i64_options("+50", 50, 10, options);
+  verify_i64_options(" 50", 50, 10, options);
+  verify_i64_options("-50", -50, 10, options);
+  verify_i64_options("   +50", 50, 10, options);
+  verify_i64_options("   -50", -50, 10, options);
+  verify_i64_options("+1f", 31, 16, options);
+
+  // Individual flags and negative expectations
+  ffc_parse_options plus_only = ffc_parse_options_default();
+  plus_only.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  verify_i64_options("+50", 50, 10, plus_only);
+  expect_outcome_i64_options(" 50", 10, plus_only, FFC_OUTCOME_INVALID_INPUT);
+
+  ffc_parse_options space_only = ffc_parse_options_default();
+  space_only.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_i64_options(" 50", 50, 10, space_only);
+  expect_outcome_i64_options("+50", 10, space_only, FFC_OUTCOME_INVALID_INPUT);
+
+  // Default options reject '+' and space
+  ffc_parse_options none = ffc_parse_options_default();
+  expect_outcome_i64_options("+50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i64_options(" 50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+
+  // Missing digits and overflow
+  expect_outcome_i64_options("+", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i64_options("   ", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_i64_options("+9223372036854775808", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
+  expect_outcome_i64_options("   -9223372036854775809", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
+}
+
+static void test_u64_options(void) {
+  ffc_parse_options options = ffc_parse_options_default();
+  options.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  options.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_u64_options("+50", 50, 10, options);
+  verify_u64_options(" 50", 50, 10, options);
+  verify_u64_options("   +50", 50, 10, options);
+  verify_u64_options("+1f", 31, 16, options);
+
+  // Unsigned must reject negative signs even with options
+  expect_outcome_u64_options("-50", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u64_options("   -50", 10, options, FFC_OUTCOME_INVALID_INPUT);
+
+  // Individual flags and negative expectations
+  ffc_parse_options plus_only = ffc_parse_options_default();
+  plus_only.format |= FFC_FORMAT_FLAG_ALLOW_LEADING_PLUS;
+  verify_u64_options("+50", 50, 10, plus_only);
+  expect_outcome_u64_options(" 50", 10, plus_only, FFC_OUTCOME_INVALID_INPUT);
+
+  ffc_parse_options space_only = ffc_parse_options_default();
+  space_only.format |= FFC_FORMAT_FLAG_SKIP_WHITE_SPACE;
+  verify_u64_options(" 50", 50, 10, space_only);
+  expect_outcome_u64_options("+50", 10, space_only, FFC_OUTCOME_INVALID_INPUT);
+
+  // Default options reject '+' and space
+  ffc_parse_options none = ffc_parse_options_default();
+  expect_outcome_u64_options("+50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u64_options(" 50", 10, none, FFC_OUTCOME_INVALID_INPUT);
+
+  // Missing digits and overflow
+  expect_outcome_u64_options("+", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u64_options("   ", 10, options, FFC_OUTCOME_INVALID_INPUT);
+  expect_outcome_u64_options("+18446744073709551616", 10, options, FFC_OUTCOME_OUT_OF_RANGE);
 }
 
 /* -- out of range (decimal) ---------------------------------------- */
@@ -694,6 +950,55 @@ static void test_issue_235(void) {
   }
 }
 
+/* -- from_chars range ---------------------------------------------- */
+
+static void test_from_chars_range(void) {
+  const char *buf = "12345extra";
+
+  int32_t out_i32 = 0;
+  ffc_result r_i32 = ffc_from_chars_i32(buf, buf + 5, 10, &out_i32);
+  if (r_i32.outcome != FFC_OUTCOME_OK || out_i32 != 12345 || r_i32.ptr != buf + 5) {
+    fprintf(stderr, "FAIL ffc_from_chars_i32 range\n");
+    FAILS++;
+  }
+
+  uint32_t out_u32 = 0;
+  ffc_result r_u32 = ffc_from_chars_u32(buf, buf + 5, 10, &out_u32);
+  if (r_u32.outcome != FFC_OUTCOME_OK || out_u32 != 12345 || r_u32.ptr != buf + 5) {
+    fprintf(stderr, "FAIL ffc_from_chars_u32 range\n");
+    FAILS++;
+  }
+
+  int64_t out_i64 = 0;
+  ffc_result r_i64 = ffc_from_chars_i64(buf, buf + 5, 10, &out_i64);
+  if (r_i64.outcome != FFC_OUTCOME_OK || out_i64 != 12345 || r_i64.ptr != buf + 5) {
+    fprintf(stderr, "FAIL ffc_from_chars_i64 range\n");
+    FAILS++;
+  }
+
+  uint64_t out_u64 = 0;
+  ffc_result r_u64 = ffc_from_chars_u64(buf, buf + 5, 10, &out_u64);
+  if (r_u64.outcome != FFC_OUTCOME_OK || out_u64 != 12345 || r_u64.ptr != buf + 5) {
+    fprintf(stderr, "FAIL ffc_from_chars_u64 range\n");
+    FAILS++;
+  }
+
+  // Failing cases: empty range
+  r_i32 = ffc_from_chars_i32(buf, buf, 10, &out_i32);
+  if (r_i32.outcome != FFC_OUTCOME_INVALID_INPUT) {
+    fprintf(stderr, "FAIL ffc_from_chars_i32 empty range outcome: %d\n", r_i32.outcome);
+    FAILS++;
+  }
+
+  // Failing cases: invalid input in bounded range
+  const char *bad = "xyz";
+  r_i32 = ffc_from_chars_i32(bad, bad + 3, 10, &out_i32);
+  if (r_i32.outcome != FFC_OUTCOME_INVALID_INPUT) {
+    fprintf(stderr, "FAIL ffc_from_chars_i32 invalid input outcome: %d\n", r_i32.outcome);
+    FAILS++;
+  }
+}
+
 /* -- main ---------------------------------------------------------- */
 
 int main(void) {
@@ -706,6 +1011,13 @@ int main(void) {
   test_u32_invalid();
   test_i64_invalid();
   test_u64_invalid();
+
+  test_i32_options();
+  test_u32_options();
+  test_i64_options();
+  test_u64_options();
+
+  test_from_chars_range();
 
   test_i32_out_of_range();
   test_u32_out_of_range();

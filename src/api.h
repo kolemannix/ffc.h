@@ -148,19 +148,43 @@ ffc_result ffc_parse_float(size_t len, const char *s, float *out);
 ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
 ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
 
-ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out);
-ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out);
-ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out);
-ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out);
+
 
 /*
  * A simplified API; the result will be 0 on error, not uninitialized.
  * If outcome is null, it will not be written to
  */
 int64_t  ffc_parse_i64_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+ffc_result ffc_parse_i64(size_t len, const char *input, int base, int64_t  *out);
+ffc_result ffc_from_chars_i64(char const* first, char const* last, int base, int64_t* out);
+ffc_result ffc_from_chars_i64_options(const char *start, const char *end, int base, int64_t* out, ffc_parse_options options);
+
+/*
+ * A simplified API; the result will be 0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
 uint64_t ffc_parse_u64_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+ffc_result ffc_parse_u64(size_t len, const char *input, int base, uint64_t *out);
+ffc_result ffc_from_chars_u64(char const* first, char const* last, int base, uint64_t* out);
+ffc_result ffc_from_chars_u64_options(const char *start, const char *end, int base, uint64_t* out, ffc_parse_options options);
+
+/*
+ * A simplified API; the result will be 0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
 int32_t  ffc_parse_i32_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+ffc_result ffc_parse_i32(size_t len, const char *input, int base, int32_t  *out);
+ffc_result ffc_from_chars_i32(char const* first, char const* last, int base, int32_t* out);
+ffc_result ffc_from_chars_i32_options(const char *start, const char *end, int base, int32_t* out, ffc_parse_options options);
+
+/*
+ * A simplified API; the result will be 0 on error, not uninitialized.
+ * If outcome is null, it will not be written to
+ */
 uint32_t ffc_parse_u32_simple(size_t len, const char *input, int base, ffc_outcome *outcome);
+ffc_result ffc_parse_u32(size_t len, const char *input, int base, uint32_t *out);
+ffc_result ffc_from_chars_u32(char const* first, char const* last, int base, uint32_t* out);
+ffc_result ffc_from_chars_u32_options(const char *start, const char *end, int base, uint32_t* out, ffc_parse_options options);
 
 /**
  * Parse a JSON number from the range [start, end) and return an int64_t or a double
