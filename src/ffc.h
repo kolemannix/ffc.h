@@ -19,6 +19,7 @@ extern "C" {
 
 #include "parse.h"
 #include "digit_comparison.h"
+#include "format.h"
 
 /* section: decimal to binary */
 

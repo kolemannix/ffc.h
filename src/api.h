@@ -188,4 +188,23 @@ typedef struct ffc_json_number {
 
 ffc_result ffc_parse_json_number(const char *start, const char *end, ffc_json_number *out);
 
+/**
+ * Exact fixed-notation formatting, equivalent to printf("%.*f", places, value)
+ * on a libc that prints the exact binary value (glibc, musl, macOS): every
+ * digit is exact and rounding is round-half-to-even on the true binary value.
+ * No floating-point arithmetic is performed, so the output does not depend on
+ * the FPU rounding mode. Non-finite values print as "inf", "-inf", "nan", "-nan".
+ *
+ * A negative `places` means the printf default of 6.
+ *
+ * Writes at most `cap` bytes to `buf` and does not NUL-terminate. Returns the
+ * full length of the formatted number even when it exceeds `cap`, so a call
+ * with cap == 0 measures the required size. A buffer of 311 + places bytes
+ * (sign, up to 309 integer digits, the point, the fraction) always suffices.
+ *
+ * A float is exactly representable as a double, so pass (double)f to get the
+ * same output as printf("%.*f", places, f).
+ */
+size_t ffc_format_double_fixed(char *buf, size_t cap, double value, int places);
+
 #endif // FFC_API

@@ -8,7 +8,7 @@ endif
 
 CLANG_FLAGS := -xc -Wall -Wextra -Wpedantic -O3 -g -std=c99 $(EXTRA_CFLAGS)
 
-ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h amalgamate.py
+ffc.h: src/ffc.h src/common.h src/parse.h src/digit_comparison.h src/api.h src/bigint.h src/format.h amalgamate.py
 	python3 amalgamate.py > ffc.h
 
 out/example: ffc.h example.c | out
@@ -30,12 +30,16 @@ out/test_runner: ffc.h test_src/test.c | out
 	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner -lm
 
-test: out/test_runner out/test_int_runner
+test: out/test_runner out/test_int_runner out/test_format_runner
 	./out/test_runner
 	./out/test_int_runner
+	./out/test_format_runner
 
 out/test_int_runner: ffc.h test_src/test_int.c | out
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner -lm
+
+out/test_format_runner: ffc.h test_src/test_format.c | out
+	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_format.c -o out/test_format_runner -lm
 
 
 # Supplemental test stuff
