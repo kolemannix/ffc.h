@@ -74,10 +74,15 @@ Define these before including `ffc.h` to control compilation:
   Exact fixed-notation formatting, equivalent to `printf("%.*f", places, value)` on a libc
   that prints the exact binary value (glibc, musl, macOS). Every digit is exact and ties
   round to even, with no floating-point arithmetic involved, so the output is identical on
-  every platform. A negative `places` means the printf default of 6. Writes at most `cap`
-  bytes, does not NUL-terminate, and returns the full length even when it exceeds `cap`,
-  so `cap == 0` measures. A buffer of `311 + places` bytes always suffices. Pass `(double)f`
-  to format a float.
+  every platform. A negative `places` means the printf default of 6.
+
+- Writes at most `cap` bytes, does not NUL-terminate.
+
+- Returns the full length even when it exceeds `cap`, so `cap == 0` can be used to measure.
+
+- A buffer of `311 + places` bytes always suffices.
+
+- Pass `(double)f` to format a float.
 
 ```c
 char buf[32];
