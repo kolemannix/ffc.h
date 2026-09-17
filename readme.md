@@ -68,6 +68,28 @@ Define these before including `ffc.h` to control compilation:
 - `ffc_result ffc_parse_u64(size_t len, const char *s, int base, uint64_t *out)`  
   Parses an unsigned 64-bit integer from string with given base.
 
+### Float Formatting
+
+- `size_t ffc_format_double_fixed(char *buf, size_t cap, double value, int places)`  
+  Exact fixed-notation formatting, equivalent to `printf("%.*f", places, value)` on a libc
+  that prints the exact binary value (glibc, musl, macOS). Every digit is exact and ties
+  round to even, with no floating-point arithmetic involved, so the output is identical on
+  every platform. A negative `places` means the printf default of 6.
+
+- Writes at most `cap` bytes, does not NUL-terminate.
+
+- Returns the full length even when it exceeds `cap`, so `cap == 0` can be used to measure.
+
+- A buffer of `311 + places` bytes always suffices.
+
+- Pass `(double)f` to format a float.
+
+```c
+char buf[32];
+size_t n = ffc_format_double_fixed(buf, sizeof buf, 2.675, 2);
+printf("%.*s\n", (int)n, buf); // 2.67, because 2.675 is below the tie in binary
+```
+
 ### Types
 
 - `ffc_outcome`: Enum indicating parse result (OK, OUT_OF_RANGE, INVALID_INPUT)

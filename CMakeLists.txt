@@ -64,6 +64,15 @@ target_link_libraries(test_int_runner PRIVATE $<$<NOT:$<C_COMPILER_ID:MSVC>>:m>)
 
 add_test(NAME test_int_runner COMMAND test_int_runner)
 
+if(NOT WIN32)
+add_executable(test_format_runner test_src/test_format.c)
+target_compile_definitions(test_format_runner PRIVATE FFC_IMPL)
+target_include_directories(test_format_runner PRIVATE . test_src)
+target_link_libraries(test_format_runner PRIVATE m)
+
+add_test(NAME test_format_runner COMMAND test_format_runner)
+endif()
+
 # Tests using src/ headers
 if(NOT WIN32)
 add_executable(test_runner_src test_src/test.c)
@@ -81,6 +90,15 @@ target_include_directories(test_int_runner_src PRIVATE test_src)
 target_link_libraries(test_int_runner_src PRIVATE ffc_src $<$<NOT:$<C_COMPILER_ID:MSVC>>:m>)
 
 add_test(NAME test_int_runner_src COMMAND test_int_runner_src)
+
+if(NOT WIN32)
+add_executable(test_format_runner_src test_src/test_format.c)
+target_compile_definitions(test_format_runner_src PRIVATE FFC_IMPL)
+target_include_directories(test_format_runner_src PRIVATE test_src)
+target_link_libraries(test_format_runner_src PRIVATE ffc_src m)
+
+add_test(NAME test_format_runner_src COMMAND test_format_runner_src)
+endif()
 
 # Example
 add_executable(example example.c)

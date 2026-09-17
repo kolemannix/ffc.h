@@ -87,6 +87,7 @@ for filename in [
     "bigint.h",
     "parse.h",
     "digit_comparison.h",
+    "format.h",
     "ffc.h",
 ]:
     with open("src/" + filename, encoding="utf8") as f:
