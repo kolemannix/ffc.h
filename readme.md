@@ -62,11 +62,22 @@ Define these before including `ffc.h` to control compilation:
 
 ### Integer Parsing
 
-- `ffc_result ffc_parse_i64(size_t len, const char *s, int base, int64_t *out)`  
-  Parses a signed 64-bit integer from string with given base.
+Integer parsing function variants are available for i64 (signed 64-bit), u64 (unsigned 64-bit), i32 (signed 32-bit), and u32 (unsigned 32-bit). For brevity's sake, only the i64 version is written here, they all act the same way for their respective type.
 
-- `ffc_result ffc_parse_u64(size_t len, const char *s, int base, uint64_t *out)`  
-  Parses an unsigned 64-bit integer from string with given base.
+All functions accept a base argument, supported bases are between 2 and 36.
+
+- `int64_t ffc_parse_i64_simple(size_t len, const char *input, int base, ffc_outcome *outcome)`
+  Parses a signed 64-bit integer from a string of given length. Returns the parsed value, outcome indicates success/failure.
+
+- `ffc_result ffc_parse_i64(size_t len, const char *s, int base, int64_t *out)`  
+  Parses a signed 64-bit integer from string, storing result in `out`. Returns `ffc_result` with outcome and end pointer.
+
+- `ffc_result ffc_from_chars_i64(char const* first, char const* last, int base, int64_t* out)`
+  Parses a signed 64-bit integer from a string contained between `first` and `last`, storing result in `out`. Returns `ffc_result` with outcome and end pointer.
+
+- `ffc_result ffc_from_chars_i64_options(const char *start, const char *end, int base, int64_t* out, ffc_parse_options options)`
+  Parses a signed 64-bit integer from a string contained between `start` and `end`, storing result in `out`. Returns `ffc_result` with outcome and end pointer. Accepts an `ffc_parse_options` parameter that allows configuring things such as allowing a leading plus sign or skipping leading whitespace.
+
 
 ### Types
 
