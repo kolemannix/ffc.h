@@ -3,3 +3,4 @@ How to release
 - Run make ffc.h
 - commit
 - Run tools/release.sh
+- push
