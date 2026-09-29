@@ -248,6 +248,15 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
 #  define FFC_IMPL_INLINE
 #endif
 
+/* Opt in to forced inlining of float APIs in implementation translation units.
+ * Clang can specialize calls without changing C/C++ external linkage.
+ * This can improve throughput at the cost of a larger caller. */
+#if defined(FFC_IMPL) && defined(FFC_ENABLE_FLOAT_INLINING) && defined(__clang__)
+#  define FFC_FLOAT_IMPL_INLINE __attribute__((always_inline))
+#else
+#  define FFC_FLOAT_IMPL_INLINE
+#endif
+
 FFC_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
 FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
@@ -257,8 +266,8 @@ FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, cons
  */
 float      ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome);
 ffc_result ffc_parse_float(size_t len, const char *s, float *out);
-ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
-ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
 
 
 
@@ -3565,13 +3574,13 @@ double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome) 
   return out;
 }
 
-ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
+extern FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
   ffc_value out_value = {0};
   ffc_result result = ffc_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_FLOAT);
   *out = out_value.f;
   return result;
 }
-ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
+extern FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_float_options(first, last, out, options);
 }

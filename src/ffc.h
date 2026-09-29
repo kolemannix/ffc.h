@@ -412,13 +412,13 @@ double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome) 
   return out;
 }
 
-ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
+extern FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
   ffc_value out_value = {0};
   ffc_result result = ffc_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_FLOAT);
   *out = out_value.f;
   return result;
 }
-ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
+extern FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_float_options(first, last, out, options);
 }

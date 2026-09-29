@@ -1,4 +1,4 @@
-.PHONY: test example exhaustive fetch-supplemental-data supplemental_tests print_version_tag
+.PHONY: test test_float_linkage example exhaustive fetch-supplemental-data supplemental_tests print_version_tag
 
 # Detect linux and define _DEFAULT_SOURCE if so
 UNAME_S := $(shell uname -s)
@@ -30,10 +30,13 @@ out/test_runner: ffc.h test_src/test.c | out
 	gcc -xc -Wall -Wextra -Wpedantic ffc.h -fsyntax-only
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test.c -o out/test_runner -lm
 
-test: out/test_runner out/test_int_runner out/test_format_runner
+test: out/test_runner out/test_int_runner out/test_format_runner test_float_linkage
 	./out/test_runner
 	./out/test_int_runner
 	./out/test_format_runner
+
+test_float_linkage: ffc.h
+	python3 test_src/test_float_linkage.py
 
 out/test_int_runner: ffc.h test_src/test_int.c | out
 	clang $(CLANG_FLAGS) -I. -Itest_src test_src/test_int.c -o out/test_int_runner -lm
