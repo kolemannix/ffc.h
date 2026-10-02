@@ -15,7 +15,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* always_inline marker, defined here so FFC_IMPL_INLINE (below) can reuse it.
+/* always_inline marker for internal static helpers.
  * common.h re-uses this same definition under an #ifndef guard. */
 #if defined(_MSC_VER)
   #define ffc_inline __forceinline
@@ -126,18 +126,46 @@ ffc_result ffc_parse_double(size_t len, const char *input, double *out);
  * `scientific`.
  */
 /* When included from a FFC_IMPL translation unit, the critical-path API
- * functions are declared always_inline so GCC inlines them at call sites
- * in the same TU. In non-FFC_IMPL TUs the declarations are plain extern.
- * Under FFC_IMPL this is just ffc_inline (always_inline); the non-FFC_IMPL
- * branch must stay empty so the symbols keep external linkage. */
-#ifdef FFC_IMPL
-#  define FFC_IMPL_INLINE ffc_inline
+ * functions below are declared always_inline so calls in that same TU get the
+ * parser specialized at the call site. In non-FFC_IMPL TUs the declarations
+ * are plain extern.
+ *
+ * FFC_API_INLINE is the one place that knows how to spell this so that the
+ * function is force-inlined in-TU while still being emitted as an external
+ * symbol for callers in other TUs:
+ *  - Clang honors always_inline without the `inline` keyword, in C and C++.
+ *    Spelling it with `inline` would give the function inline linkage in C++
+ *    and the symbol would not be emitted, breaking separate-TU callers.
+ *  - GCC only honors always_inline on functions declared `inline`; in C99
+ *    `extern inline` still yields an external definition. In C++ it would
+ *    not, so the GCC branch is C-only.
+ *  - Elsewhere the API is left out-of-line. */
+#if defined(__clang__)
+#  define FFC_API_INLINE __attribute__((always_inline))
+#elif defined(__GNUC__) && !defined(__cplusplus)
+#  define FFC_API_INLINE extern __attribute__((always_inline)) inline
 #else
-#  define FFC_IMPL_INLINE
+#  define FFC_API_INLINE
 #endif
 
-FFC_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
-FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
+/* Double parsing is always inlined in the FFC_IMPL TU. */
+#ifdef FFC_IMPL
+#  define FFC_DOUBLE_IMPL_INLINE FFC_API_INLINE
+#else
+#  define FFC_DOUBLE_IMPL_INLINE
+#endif
+
+/* Float parsing is inlined only when FFC_ENABLE_FLOAT_INLINING is also
+ * defined: it speeds up float parsing considerably but grows the caller and
+ * has been measured to cost double parsing in the same TU a few percent. */
+#if defined(FFC_IMPL) && defined(FFC_ENABLE_FLOAT_INLINING)
+#  define FFC_FLOAT_IMPL_INLINE FFC_API_INLINE
+#else
+#  define FFC_FLOAT_IMPL_INLINE
+#endif
+
+FFC_DOUBLE_IMPL_INLINE ffc_result ffc_from_chars_double(const char *start, const char *end, double* out);
+FFC_DOUBLE_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options);
 
 /*
  * A simplified API; the result will be 0.0 on error, not uninitialized.
@@ -145,8 +173,8 @@ FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, cons
  */
 float      ffc_parse_float_simple(size_t len, const char *s, ffc_outcome *outcome);
 ffc_result ffc_parse_float(size_t len, const char *s, float *out);
-ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
-ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float(const char *start,  const char *end, float* out);
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options);
 
 
 

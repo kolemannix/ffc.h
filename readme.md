@@ -38,6 +38,16 @@ the non-simple variants as the `ffc_result` includes the stopping point, just li
 Define these before including `ffc.h` to control compilation:
 
 - `FFC_IMPL` — Include the implementation (define in exactly one translation unit).
+  In that translation unit `ffc_from_chars_double` and
+  `ffc_from_chars_double_options` are force-inlined at their call sites (Clang
+  in C and C++, GCC in C), so the parser is specialized there. The functions
+  remain ordinary external symbols for every other translation unit.
+- `FFC_ENABLE_FLOAT_INLINING` — Define alongside `FFC_IMPL` to also force-inline
+  `ffc_from_chars_float` and `ffc_from_chars_float_options` in that translation
+  unit. Off by default: it speeds up float parsing (about 7–35% in the
+  measurements on Apple M-series and Linux x86/ARM), but grows the caller and
+  was measured to slow double parsing in the same translation unit by up to
+  about 2%. Measure both precisions in your application before enabling it.
 - `FFC_ROUNDS_TO_NEAREST` — Assert at compile time that the floating-point
   environment uses IEEE 754 round-to-nearest mode (the default on virtually all
   platforms). When defined, the runtime rounding-mode check is elided, removing a
