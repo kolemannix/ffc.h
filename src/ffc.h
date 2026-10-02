@@ -384,9 +384,8 @@ ffc_result ffc_from_chars(char* first, char* last, ffc_parse_options options, ff
   return ffc_from_chars_advanced(pns, value, vk);
 }
 
-/* extern FFC_IMPL_INLINE gives GCC the always_inline directive while also
- * requesting external linkage so non-FFC_IMPL TUs can link these symbols. */
-extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
+/* See FFC_API_INLINE in api.h: force-inlined in this TU, still exported. */
+FFC_DOUBLE_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *start, const char *end, double* out, ffc_parse_options options) {
   // It would be UB to directly use *out as our ffc_value, even though its the same layout
   ffc_value out_value = {0};
 
@@ -395,7 +394,7 @@ extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double_options(const char *star
   *out = out_value.d;
   return result;
 }
-extern FFC_IMPL_INLINE ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
+FFC_DOUBLE_IMPL_INLINE ffc_result ffc_from_chars_double(char const* first, char const* last, double* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_double_options(first, last, out, options);
 }
@@ -412,13 +411,13 @@ double ffc_parse_double_simple(size_t len, const char *s, ffc_outcome *outcome) 
   return out;
 }
 
-ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float_options(const char *start,  const char *end, float* out, ffc_parse_options options) {
   ffc_value out_value = {0};
   ffc_result result = ffc_from_chars((char*)start, (char*)end, options, &out_value, FFC_VALUE_KIND_FLOAT);
   *out = out_value.f;
   return result;
 }
-ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
+FFC_FLOAT_IMPL_INLINE ffc_result ffc_from_chars_float(char const* first, char const* last, float* out) {
   ffc_parse_options options = ffc_parse_options_default();
   return ffc_from_chars_float_options(first, last, out, options);
 }
